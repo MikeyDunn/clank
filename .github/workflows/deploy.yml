@@ -19,11 +19,11 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: what to deploy (dev = bot, site = marketing site, all = both)
+        description: what to deploy (backend = bot/API/Lambdas, site = marketing site, all = both)
         required: true
-        default: dev
+        default: backend
         type: choice
-        options: [dev, site, all]
+        options: [backend, site, all]
 
 permissions:
   id-token: write   # required for OIDC
@@ -35,7 +35,7 @@ jobs:
     environment: prod   # gate: configure required reviewers here
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -67,8 +67,10 @@ jobs:
           IMESSAGE_TOKEN_SECRET: ${{ secrets.IMESSAGE_TOKEN_SECRET }}
           PRINTIFY_API_KEY: ${{ secrets.PRINTIFY_API_KEY }}
         run: |
+          # NOTE: 'backend' is the friendly label; the real SST stage stays 'dev'
+          # (renaming the stage would orphan all live clank-dev-* resources).
           case "$STAGE" in
-            site) npm run deploy:site ;;
-            all)  npx sst deploy --stage dev && npm run deploy:site ;;
-            *)    npx sst deploy --stage "$STAGE" ;;  # dev
+            backend) npx sst deploy --stage dev ;;
+            site)    npm run deploy:site ;;
+            all)     npx sst deploy --stage dev && npm run deploy:site ;;
           esac
