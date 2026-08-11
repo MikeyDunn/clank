@@ -1,0 +1,20 @@
+{
+  // Type-checking only — SST/esbuild does the actual build, so tsc never emits.
+  // Strict, minus the two laborious-low-value checks (implicit-any param
+  // annotations + catch-variable narrowing); the real safety checks are on.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "tmp", ".serverless", ".sst", "coverage"]
+}

@@ -1,0 +1,49 @@
+{
+  "name": "clank-image-generator",
+  "version": "1.0.0",
+  "description": "Slack command to generate images using OpenRouter API",
+  "main": "src/handlers/slashCommand.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "sst dev",
+    "deploy": "sst deploy",
+    "deploy:dev": "sst deploy --stage dev",
+    "deploy:prod": "sst deploy --stage production",
+    "deploy:site": "sst deploy --stage site",
+    "remove": "sst remove",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "check": "npm run lint && npm run typecheck && npm test"
+  },
+  "keywords": [
+    "slack",
+    "openrouter",
+    "image-generation",
+    "serverless"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.705.0",
+    "@aws-sdk/client-lambda": "^3.705.0",
+    "@aws-sdk/client-s3": "^3.962.0",
+    "@aws-sdk/client-s3vectors": "^3.1073.0",
+    "@aws-sdk/lib-dynamodb": "^3.705.0",
+    "@discordjs/rest": "^2.6.3",
+    "@slack/web-api": "^8.0.0",
+    "discord-interactions": "^4.4.0",
+    "electrodb": "^3.9.1",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.1007.0",
+    "@biomejs/biome": "^2.5.0",
+    "@types/node": "^26.0.0",
+    "sst": "^4.15.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
