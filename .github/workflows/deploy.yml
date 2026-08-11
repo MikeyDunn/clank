@@ -19,11 +19,11 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: SST stage to deploy
+        description: what to deploy (dev = bot, site = marketing site, all = both)
         required: true
         default: dev
         type: choice
-        options: [dev, site]
+        options: [dev, site, all]
 
 permissions:
   id-token: write   # required for OIDC
@@ -49,6 +49,9 @@ jobs:
 
       - name: Deploy
         env:
+          # Input via env (never interpolated into the shell) — safe even if the
+          # choice input ever became free-text. Constrained to dev|site|all.
+          STAGE: ${{ inputs.stage }}
           # Non-secret deploy identifiers (repo/environment variables)
           API_BASE_DOMAIN: ${{ vars.API_BASE_DOMAIN }}
           ACM_CERT_ARN: ${{ vars.ACM_CERT_ARN }}
@@ -64,8 +67,8 @@ jobs:
           IMESSAGE_TOKEN_SECRET: ${{ secrets.IMESSAGE_TOKEN_SECRET }}
           PRINTIFY_API_KEY: ${{ secrets.PRINTIFY_API_KEY }}
         run: |
-          if [ "${{ inputs.stage }}" = "site" ]; then
-            npm run deploy:site
-          else
-            npx sst deploy --stage "${{ inputs.stage }}"
-          fi
+          case "$STAGE" in
+            site) npm run deploy:site ;;
+            all)  npx sst deploy --stage dev && npm run deploy:site ;;
+            *)    npx sst deploy --stage "$STAGE" ;;  # dev
+          esac
