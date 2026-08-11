@@ -1,0 +1,71 @@
+# Safe CD: MANUAL trigger only, OIDC (no long-lived AWS keys), environment-gated.
+#
+# Why this shape for a public repo:
+#  - workflow_dispatch: never auto-deploys on push/PR — only a maintainer with
+#    write access can run it, so a fork or drive-by PR can't deploy to your AWS.
+#  - OIDC role assumption: GitHub mints a short-lived token and assumes an IAM
+#    role you scope. No AWS access keys ever stored in the repo.
+#  - environment `production`: add required reviewers in repo settings for a
+#    human approval gate before anything reaches live infra.
+#
+# One-time setup (see docs/DEPLOY.md):
+#  1. Create a GitHub OIDC identity provider + a scoped deploy role in AWS.
+#  2. Repo → Settings → Environments → `production`: add the role ARN + the
+#     deploy env vars/secrets, and (recommended) required reviewers.
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: SST stage to deploy
+        required: true
+        default: dev
+        type: choice
+        options: [dev, site]
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production   # gate: configure required reviewers here
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Assume AWS role via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy
+        env:
+          # Non-secret deploy identifiers (repo/environment variables)
+          API_BASE_DOMAIN: ${{ vars.API_BASE_DOMAIN }}
+          ACM_CERT_ARN: ${{ vars.ACM_CERT_ARN }}
+          SHARP_LAYER_ARN: ${{ vars.SHARP_LAYER_ARN }}
+          # Secrets
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          DISCORD_APP_ID: ${{ secrets.DISCORD_APP_ID }}
+          DISCORD_PUBLIC_KEY: ${{ secrets.DISCORD_PUBLIC_KEY }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_OPENROUTER_API_KEY: ${{ secrets.DISCORD_OPENROUTER_API_KEY }}
+          IMESSAGE_TOKEN_SECRET: ${{ secrets.IMESSAGE_TOKEN_SECRET }}
+          PRINTIFY_API_KEY: ${{ secrets.PRINTIFY_API_KEY }}
+        run: |
+          if [ "${{ inputs.stage }}" = "site" ]; then
+            npm run deploy:site
+          else
+            npx sst deploy --stage "${{ inputs.stage }}"
+          fi

@@ -1,0 +1,51 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
+    "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+    "files": {
+        "includes": [
+            "**/*.ts",
+            "**/*.js",
+            "!node_modules",
+            "!tmp",
+            "!.serverless",
+            "!.sst",
+            "!coverage",
+            "!sst-env.d.ts"
+        ]
+    },
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 120
+    },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "single",
+            "semicolons": "always",
+            "trailingCommas": "es5"
+        }
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "suspicious": {
+                "noExplicitAny": "off"
+            },
+            "style": {
+                "useImportType": "error",
+                "useExportType": "error",
+                "useConsistentArrayType": {
+                    "level": "error",
+                    "options": { "syntax": "shorthand" }
+                }
+            },
+            "complexity": {
+                "noExcessiveCognitiveComplexity": {
+                    "level": "warn",
+                    "options": { "maxAllowedComplexity": 15 }
+                }
+            }
+        }
+    }
+}
