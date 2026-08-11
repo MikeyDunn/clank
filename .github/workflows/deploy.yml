@@ -32,7 +32,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production   # gate: configure required reviewers here
+    environment: prod   # gate: configure required reviewers here
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
