@@ -14,7 +14,12 @@ export default $config({
             removal: 'retain',
             protect: prod,
             home: 'aws',
-            providers: { aws: { region: 'us-east-1', profile: process.env.AWS_PROFILE || 'default' } },
+            // Use a named profile ONLY when one is set (local dev via .env);
+            // in CI the credentials arrive as env vars from the OIDC-assumed
+            // role, so omit `profile` and let the default chain find them.
+            providers: {
+                aws: { region: 'us-east-1', ...(process.env.AWS_PROFILE ? { profile: process.env.AWS_PROFILE } : {}) },
+            },
         };
     },
     async run() {
