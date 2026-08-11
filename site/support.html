@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CLANK-1 · Support</title>
+    <meta name="description" content="Support and FAQ for Clank, the Discord image generation bot. Free renders, credits, refunds, privacy, and how to get help.">
+    <link rel="canonical" href="https://clank.fyi/support.html">
+    <meta property="og:title" content="CLANK-1 · Support">
+    <meta property="og:description" content="Support and FAQ for Clank, the Discord image bot.">
+    <meta property="og:url" content="https://clank.fyi/support.html">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2317191e'/><path d='M 20.8 24.8 A 10 10 0 1 1 20.8 7.2' fill='none' stroke='%23ff6a2c' stroke-width='5' stroke-linecap='round'/><rect x='18.3' y='12.8' width='6.4' height='6.4' rx='2' fill='%23ff6a2c'/></svg>">
+    <style>
+        :root {
+            color-scheme: dark;
+            --ink: #17191e;
+            --panel: #101216;
+            --line: #20242b;
+            --line-2: #2c313a;
+            --fg: #d7dbe0;
+            --dim: #7c828c;
+            --dim-2: #565c66;
+            --signal: #ff6a2c;
+            --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
+        }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0; background: var(--ink); color: var(--fg);
+            font-family: var(--mono); font-size: 14px; line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+        a { color: var(--signal); text-decoration: none; }
+        a:hover { text-decoration: underline; text-underline-offset: 3px; }
+        ::selection { background: var(--signal); color: #120a05; }
+        .sheet { max-width: 780px; margin: 0 auto; padding: 0 clamp(14px, 4vw, 40px) 64px; }
+        .rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+        .rule.heavy { border-top: 2px solid var(--line-2); }
+        .lbl { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+
+        .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 26px 0 12px; flex-wrap: wrap; }
+        .mark { display: flex; align-items: center; gap: 12px; }
+        .mark svg { width: 28px; height: 28px; display: block; }
+        .mark .pn { font-size: 14px; letter-spacing: 0.06em; }
+        .mark .pn b { color: #fff; font-weight: 600; }
+        .mark .pn span { color: var(--dim); }
+
+        h1 { margin: 30px 0 6px; font-size: clamp(28px, 5vw, 40px); font-weight: 600; color: #fff; letter-spacing: -0.01em; line-height: 1.05; }
+        .lede { color: var(--dim); margin: 0 0 6px; max-width: 56ch; }
+
+        section { margin-top: 40px; }
+        .sec-head { display: flex; align-items: baseline; gap: 12px; padding-bottom: 8px; }
+        .sec-head .no { color: var(--signal); font-size: 12px; }
+        .sec-head h2 { margin: 0; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; font-weight: 600; }
+
+        .qa { margin-top: 4px; }
+        .qa > div { padding: 16px 0; border-bottom: 1px solid var(--line); }
+        .qa .q { color: #fff; font-weight: 600; margin: 0 0 6px; }
+        .qa .a { color: var(--dim); margin: 0; max-width: 66ch; }
+        .qa .a code { color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; font-size: 0.92em; }
+        .qa .a b { color: var(--fg); font-weight: 600; }
+
+        .contact { border: 1px solid var(--line-2); border-radius: 3px; padding: clamp(20px, 4vw, 30px); background: var(--panel); margin-top: 6px; }
+        .contact p { margin: 0 0 10px; color: var(--dim); }
+        .contact p:last-child { margin-bottom: 0; }
+        .contact .big { font-size: 17px; color: #fff; }
+
+        footer { margin-top: 44px; padding-top: 16px; }
+        .foot { display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: space-between; color: var(--dim-2); font-size: 11.5px; }
+        .foot a { color: var(--dim); }
+        .foot a:hover { color: var(--fg); }
+    </style>
+    <!-- Analytics: PostHog. The phc_ key is a public, client-side project key.
+         person_profiles=identified_only keeps anonymous visitors from creating
+         person records (cheaper + less personal data for a marketing site). -->
+    <script defer src="https://us-assets.i.posthog.com/static/array.js"
+        onload="posthog.init('phc_uRhXAN4A4qQmS5BechHuPUcgSXp7EnwVLkcfr5BWFzTk',{api_host:'https://us.i.posthog.com',person_profiles:'identified_only'})"></script>
+</head>
+<body>
+
+<template id="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M 20.8 24.8 A 10 10 0 1 1 20.8 7.2" fill="none" stroke="#ff6a2c" stroke-width="5" stroke-linecap="round" />
+        <rect x="18.3" y="12.8" width="6.4" height="6.4" rx="2" fill="#ff6a2c" />
+    </svg>
+</template>
+
+<div class="sheet">
+
+    <div class="top">
+        <div class="mark">
+            <span id="mark-logo"></span>
+            <span class="pn"><b>CLANK-1</b> <span>· image generation unit</span></span>
+        </div>
+        <span class="lbl">Support · rev 1.0</span>
+    </div>
+    <hr class="rule heavy">
+
+    <h1>Support</h1>
+    <p class="lede">How Clank works, what things cost, and how to reach a human.</p>
+
+    <section>
+        <div class="sec-head"><span class="no">§1</span><h2>Using it</h2></div>
+        <hr class="rule">
+        <div class="qa">
+            <div>
+                <p class="q">How do I make an image?</p>
+                <p class="a">Type <code>/clank</code> followed by whatever you want, for example <code>/clank a raccoon piloting a submarine</code>. Clank posts the result in the channel. A render usually takes 15 to 30 seconds, because he thinks about the request before drawing it.</p>
+            </div>
+            <div>
+                <p class="q">What is "Clank It"?</p>
+                <p class="a">Right-click (or long-press) any message, then choose <b>Apps → Clank It</b>. Clank riffs on that message instead of a prompt you type. If the message has an image, he uses it as a reference.</p>
+            </div>
+            <div>
+                <p class="q">Clank isn't showing up in my server.</p>
+                <p class="a">Commands can take up to an hour to appear the first time after install. If <code>/clank</code> still doesn't autocomplete after that, try removing and re-adding the app. Clank installs to a <b>server</b>, not to your personal account.</p>
+            </div>
+            <div>
+                <p class="q">Why did my request fail or get declined?</p>
+                <p class="a">Some prompts trip automated content filters, and occasionally a render just fails. Nothing is deducted when that happens. Rephrasing usually works.</p>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="no">§2</span><h2>Free renders and credits</h2></div>
+        <hr class="rule">
+        <div class="qa">
+            <div>
+                <p class="q">How much is free?</p>
+                <p class="a">Your <b>first render is free</b>, per person, with no signup. After that you buy credits, starting at $2.99 for 8. There is also a short cooldown between renders.</p>
+            </div>
+            <div>
+                <p class="q">Are free renders and credits per server or per person?</p>
+                <p class="a">Per <b>person</b>. Your daily allowance and your credit balance are tied to your Discord account and work in every server that has Clank. They are not shared with anyone else, and adding Clank to more servers does not give you more free renders.</p>
+            </div>
+            <div>
+                <p class="q">How do I buy more, and how do I check my balance?</p>
+                <p class="a">Run <code>/credits</code>. It shows what you have left and offers credit packs you can buy directly in Discord. Only you can see that message. One credit equals one image; text replies and failed renders are free.</p>
+            </div>
+            <div>
+                <p class="q">Do credits expire?</p>
+                <p class="a">No, there is no time limit on credits you have bought. See the <a href="/terms.html">Terms</a> for the full details.</p>
+            </div>
+            <div>
+                <p class="q">I bought credits and my balance didn't update.</p>
+                <p class="a">Run <code>/credits</code> once more, which re-checks your purchase with Discord and applies it. If it still looks wrong, email us with your Discord username and roughly when you bought, and we will sort it out.</p>
+            </div>
+            <div>
+                <p class="q">Can I get a refund?</p>
+                <p class="a">Purchases are handled by Discord, so refunds go through <a href="https://support.discord.com/hc/en-us/requests/new" target="_blank" rel="noopener">Discord Support</a>. If something went wrong on our end, email us first and we will try to fix it directly.</p>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="no">§3</span><h2>Privacy and removal</h2></div>
+        <hr class="rule">
+        <div class="qa">
+            <div>
+                <p class="q">Does Clank read my server's messages?</p>
+                <p class="a">No. Clank only receives what you hand him: the text of a <code>/clank</code> prompt, or a message you explicitly run <b>Clank It</b> on. He installs with slash-command access only, with no message-reading and no member list.</p>
+            </div>
+            <div>
+                <p class="q">What does Clank remember?</p>
+                <p class="a">Clank keeps a memory per server so his responses fit that community, and each server's memory is separate from every other server's. Full detail is in the <a href="/privacy.html">Privacy Policy</a>.</p>
+            </div>
+            <div>
+                <p class="q">How do I remove Clank, or delete my data?</p>
+                <p class="a">Server Settings → Integrations → Clank → Remove. That stops any new collection for that server. To have data deleted, email us and tell us the server, or your Discord username for your own data.</p>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="sec-head"><span class="no">§4</span><h2>Contact</h2></div>
+        <hr class="rule">
+        <div class="contact">
+            <p class="big"><a href="mailto:contact@clank.fyi">contact@clank.fyi</a></p>
+            <p>A real person reads this. For anything about a purchase, include your <b>Discord username</b> and roughly <b>when</b> it happened, and we can find it quickly.</p>
+        </div>
+    </section>
+
+    <footer>
+        <hr class="rule">
+        <div class="foot">
+            <span>CLANK-1 · image generation unit · © 2026 Sick Umbrella, LLC</span>
+            <span><a href="/">home</a> · <a href="/terms.html">terms</a> · <a href="/privacy.html">privacy</a></span>
+        </div>
+    </footer>
+
+</div>
+
+<script>
+    (function () {
+        var tpl = document.getElementById("logo").content;
+        var m = document.getElementById("mark-logo");
+        if (m) m.appendChild(tpl.cloneNode(true));
+    })();
+</script>
+</body>
+</html>

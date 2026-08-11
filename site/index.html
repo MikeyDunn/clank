@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<!-- he reads the source too. hello. -->
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CLANK-1 · Image Generation Unit</title>
+    <meta name="description" content="An image bot for Discord servers with an ongoing story. Draws what you ask, remembers what stuck. Type a prompt or right-click any message. Free to try, no signup.">
+    <link rel="canonical" href="https://clank.fyi/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="CLANK-1 · Image Generation Unit">
+    <meta property="og:description" content="An image bot for servers with an ongoing story. Draws what you ask, remembers what stuck.">
+    <meta property="og:url" content="https://clank.fyi/">
+    <meta property="og:image" content="https://clank.fyi/media/demo-cat-in-space.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://clank.fyi/media/demo-cat-in-space.png">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230a0b0d'/><path d='M 20.8 24.8 A 10 10 0 1 1 20.8 7.2' fill='none' stroke='%23ff6a2c' stroke-width='5' stroke-linecap='round'/><rect x='18.3' y='12.8' width='6.4' height='6.4' rx='2' fill='%23ff6a2c'/></svg>">
+    <style>
+        :root {
+            color-scheme: dark;
+            --ink: #17191e;
+            --panel: #101216;
+            --line: #20242b;
+            --line-2: #2c313a;
+            --grid: #14171c;
+            --fg: #d7dbe0;
+            --dim: #7c828c;
+            --dim-2: #565c66;
+            --signal: #ff6a2c;
+            --signal-dim: #b8501f;
+            --ok: #4bb98a;
+            --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
+        }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0;
+            background: var(--ink);
+            color: var(--fg);
+            font-family: var(--mono);
+            font-size: 14px;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+            font-variant-numeric: tabular-nums;
+        }
+        a { color: var(--signal); text-decoration: none; }
+        ::selection { background: var(--signal); color: #120a05; }
+        .sheet { max-width: 960px; margin: 0 auto; padding: 0 clamp(14px, 4vw, 40px) 64px; }
+
+        /* frame / rules */
+        .rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+        .rule.heavy { border-top: 2px solid var(--line-2); }
+        .lbl { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+        .sig { color: var(--signal); }
+
+        /* masthead */
+        .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 26px 0 12px; flex-wrap: wrap; }
+        .mark { display: flex; align-items: center; gap: 12px; }
+        .mark svg { width: 30px; height: 30px; display: block; }
+        .mark .pn { font-size: 15px; letter-spacing: 0.06em; }
+        .mark .pn b { color: #fff; font-weight: 600; }
+        .mark .pn span { color: var(--dim); }
+        .top .meta { text-align: right; line-height: 1.5; }
+        .top .meta .lbl { display: block; }
+
+        /* hero */
+        .hero { padding: 30px 0 8px; display: grid; grid-template-columns: 1fr; gap: 26px; }
+        @media (min-width: 760px) { .hero { grid-template-columns: 1.05fr 0.95fr; align-items: center; } }
+        h1 { margin: 8px 0 0; font-size: clamp(34px, 7vw, 62px); font-weight: 600; letter-spacing: -0.01em; color: #fff; line-height: 1; }
+        h1 .u { color: var(--signal); }
+        .subtitle { margin: 14px 0 0; color: var(--dim); max-width: 40ch; font-size: 14px; }
+        .subtitle b { color: var(--fg); font-weight: 400; }
+        .cta-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 24px; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono);
+            font-size: 13px; padding: 10px 16px; border: 1px solid var(--signal-dim);
+            background: var(--signal); color: #120a05; font-weight: 600; border-radius: 2px;
+            transition: box-shadow .15s ease, transform .1s ease;
+        }
+        .btn:hover { box-shadow: 0 0 0 1px var(--signal), 0 6px 26px -10px var(--signal); transform: translateY(-1px); }
+        .btn.ghost { background: transparent; color: var(--fg); border-color: var(--line-2); font-weight: 400; }
+        .btn.ghost:hover { border-color: var(--dim); box-shadow: none; }
+        .cta-note { flex-basis: 100%; color: var(--dim-2); font-size: 11.5px; margin-top: 2px; }
+
+        /* schematic block diagram */
+        .diagram { border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 60%, transparent); border-radius: 3px; padding: 6px; }
+        .diagram .cap { display: flex; justify-content: space-between; padding: 6px 8px; }
+        .diagram svg { width: 100%; height: auto; display: block; }
+        .diagram svg text { font-family: var(--mono); }
+
+        /* sections */
+        section { margin-top: 44px; }
+        .sec-head { display: flex; align-items: baseline; gap: 12px; padding-bottom: 8px; }
+        .sec-head .no { color: var(--signal); font-size: 12px; }
+        .sec-head h2 { margin: 0; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; font-weight: 600; }
+        .sec-head .of { margin-left: auto; color: var(--dim-2); font-size: 11px; letter-spacing: 0.1em; }
+
+        /* tables */
+        table { width: 100%; border-collapse: collapse; margin-top: 2px; }
+        th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+        thead th { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line-2); font-weight: 400; }
+        tbody td.k { color: var(--signal); white-space: nowrap; }
+        tbody td.v { color: #fff; }
+        tbody td.d { color: var(--dim); }
+        tbody tr:hover td { background: color-mix(in srgb, var(--signal) 4%, transparent); }
+        td code { color: var(--fg); }
+
+        /* sample output */
+        .fig { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 4px; align-items: center; }
+        @media (min-width: 720px) { .fig { grid-template-columns: 0.85fr 1.15fr; } }
+        .fig-frame { border: 1px solid var(--line-2); border-radius: 3px; overflow: hidden; background: var(--panel); }
+        .fig-frame img { display: block; width: 100%; height: auto; }
+        .fig-frame .bar { display: flex; justify-content: space-between; padding: 7px 10px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--dim); letter-spacing: 0.06em; }
+        .fig p { color: var(--dim); margin: 0 0 12px; max-width: 42ch; }
+        .fig p b { color: var(--fg); font-weight: 400; }
+        .fig .tick { color: var(--signal); }
+
+        /* closing */
+        .order { border: 1px solid var(--line-2); border-radius: 3px; padding: clamp(22px, 5vw, 40px); text-align: center; background: color-mix(in srgb, var(--panel) 70%, transparent); }
+        .order h3 { margin: 0 0 8px; color: #fff; font-size: clamp(20px, 3.4vw, 28px); font-weight: 600; letter-spacing: -0.01em; }
+        .order p { color: var(--dim); margin: 0 auto 22px; max-width: 46ch; }
+
+        footer { margin-top: 40px; padding-top: 16px; }
+        .foot { display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: space-between; color: var(--dim-2); font-size: 11.5px; }
+        .foot a { color: var(--dim); }
+        .foot a:hover { color: var(--fg); }
+    </style>
+    <!-- Analytics: PostHog. The phc_ key is a public, client-side project key.
+         person_profiles=identified_only keeps anonymous visitors from creating
+         person records (cheaper + less personal data for a marketing site). -->
+    <script defer src="https://us-assets.i.posthog.com/static/array.js"
+        onload="posthog.init('phc_uRhXAN4A4qQmS5BechHuPUcgSXp7EnwVLkcfr5BWFzTk',{api_host:'https://us.i.posthog.com',person_profiles:'identified_only'})"></script>
+</head>
+<body>
+
+<!-- The C monogram: the part marking -->
+<template id="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M 20.8 24.8 A 10 10 0 1 1 20.8 7.2" fill="none" stroke="#ff6a2c" stroke-width="5" stroke-linecap="round" />
+        <rect x="18.3" y="12.8" width="6.4" height="6.4" rx="2" fill="#ff6a2c" />
+    </svg>
+</template>
+
+<div class="sheet">
+
+    <div class="top">
+        <div class="mark">
+            <span id="mark-logo"></span>
+            <span class="pn"><b>CLANK-1</b> <span>· image generation unit</span></span>
+        </div>
+        <div class="meta">
+            <span class="lbl">Datasheet</span>
+            <span class="lbl">Rev 1.0 · <span class="sig">clank.fyi</span></span>
+        </div>
+    </div>
+    <hr class="rule heavy">
+
+    <div class="hero">
+        <div>
+            <span class="lbl">an image bot for servers with an ongoing story</span>
+            <h1>Text in.<br><span class="u">Image out.</span></h1>
+            <p class="subtitle">CLANK-1 turns any prompt into an image, inside Discord. <b>Draws what you ask, remembers what stuck.</b> Slash-command it, or right-click any message and hand it over. No account, no setup. <b>Ships generic. Does not stay that way.</b></p>
+            <div class="cta-row">
+                <a class="btn" href="#install" data-install>Add to Discord →</a>
+                <a class="btn ghost" href="#spec">Specifications</a>
+                <p class="cta-note">Your first render is free. Then credits, bought inside Discord.</p>
+            </div>
+        </div>
+        <div class="diagram">
+            <div class="cap"><span class="lbl">Fig.1</span><span class="lbl">functional block</span></div>
+            <svg viewBox="0 0 420 190" role="img" aria-label="Block diagram: a text prompt feeds CLANK-1, which outputs an image.">
+                <defs>
+                    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                        <path d="M0 0 L10 5 L0 10 z" fill="#ff6a2c" />
+                    </marker>
+                </defs>
+                <g font-size="11">
+                    <!-- input -->
+                    <rect x="14" y="70" width="96" height="50" rx="3" fill="none" stroke="#2c313a" />
+                    <text x="62" y="92" fill="#d7dbe0" text-anchor="middle">PROMPT</text>
+                    <text x="62" y="107" fill="#565c66" text-anchor="middle" font-size="9.5">text / message</text>
+                    <!-- signal in -->
+                    <line x1="110" y1="95" x2="168" y2="95" stroke="#ff6a2c" stroke-width="1.5" marker-end="url(#ar)" />
+                    <text x="139" y="86" fill="#7c828c" text-anchor="middle" font-size="9">IN</text>
+                    <!-- unit -->
+                    <rect x="170" y="52" width="112" height="86" rx="3" fill="#101216" stroke="#ff6a2c" />
+                    <text x="226" y="90" fill="#fff" text-anchor="middle" font-size="13" font-weight="600">CLANK-1</text>
+                    <text x="226" y="106" fill="#7c828c" text-anchor="middle" font-size="9">render core</text>
+                    <!-- little pins -->
+                    <line x1="170" y1="66" x2="162" y2="66" stroke="#2c313a" /><line x1="170" y1="124" x2="162" y2="124" stroke="#2c313a" />
+                    <line x1="282" y1="66" x2="290" y2="66" stroke="#2c313a" /><line x1="282" y1="124" x2="290" y2="124" stroke="#2c313a" />
+                    <!-- signal out -->
+                    <line x1="282" y1="95" x2="332" y2="95" stroke="#ff6a2c" stroke-width="1.5" marker-end="url(#ar)" />
+                    <text x="307" y="86" fill="#7c828c" text-anchor="middle" font-size="9">OUT</text>
+                    <!-- output -->
+                    <rect x="334" y="70" width="72" height="50" rx="3" fill="none" stroke="#2c313a" />
+                    <text x="370" y="92" fill="#d7dbe0" text-anchor="middle">IMAGE</text>
+                    <text x="370" y="107" fill="#565c66" text-anchor="middle" font-size="9.5">or text</text>
+                    <!-- dimension line -->
+                    <line x1="14" y1="164" x2="406" y2="164" stroke="#20242b" />
+                    <line x1="14" y1="160" x2="14" y2="168" stroke="#20242b" /><line x1="406" y1="160" x2="406" y2="168" stroke="#20242b" />
+                    <text x="210" y="178" fill="#565c66" text-anchor="middle" font-size="9">typ. 15-30 s · latency incl. reasoning</text>
+                </g>
+            </svg>
+        </div>
+    </div>
+
+    <section id="pinout">
+        <div class="sec-head"><span class="no">§1</span><h2>Command Function</h2><span class="of">3 of 3</span></div>
+        <hr class="rule">
+        <table>
+            <thead><tr><th style="width:34%">Invocation</th><th>Function</th></tr></thead>
+            <tbody>
+                <tr><td class="k"><code>/clank &lt;prompt&gt;</code></td><td class="d">Type what you want. It draws it and posts to the channel.</td></tr>
+                <tr><td class="k">Clank It</td><td class="d">Right-click any message → Apps → Clank It. It riffs on that message, image or text.</td></tr>
+                <tr><td class="k"><code>/credits</code></td><td class="d">Check your balance and buy more renders, purchased in-app, private to you.</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="spec">
+        <div class="sec-head"><span class="no">§2</span><h2>Specifications</h2><span class="of">nominal</span></div>
+        <hr class="rule">
+        <table>
+            <thead><tr><th style="width:34%">Parameter</th><th style="width:33%">Value</th><th>Notes</th></tr></thead>
+            <tbody>
+                <tr><td class="k">Role</td><td class="v">resident artist</td><td class="d">interprets the request; does not transcribe it</td></tr>
+                <tr><td class="k">Adaptation</td><td class="v">per deployment</td><td class="d">the unit fits itself to the server it is installed in</td></tr>
+                <tr><td class="k">Continuity</td><td class="v">persistent</td><td class="d">what the server keeps coming back to carries forward</td></tr>
+                <tr><td class="k">Isolation</td><td class="v">per server</td><td class="d">nothing bleeds between deployments</td></tr>
+                <tr><td class="k">Input</td><td class="v">text prompt</td><td class="d">plus any message you point it at, image included</td></tr>
+                <tr><td class="k">Output</td><td class="v">1 image</td><td class="d">occasionally a short text reply instead</td></tr>
+                <tr><td class="k">Style range</td><td class="v">unbounded</td><td class="d">any medium, era, or mood you ask for</td></tr>
+                <tr><td class="k">Trial</td><td class="v">1 render</td><td class="d">per person, one time, no signup</td></tr>
+                <tr><td class="k">Credits</td><td class="v">8 / 20 / 40</td><td class="d">bought inside Discord, no card dance, no time limit</td></tr>
+                <tr><td class="k">Setup</td><td class="v">0 steps</td><td class="d">no account, no config, install and go</td></tr>
+                <tr><td class="k">Interface</td><td class="v">slash + menu</td><td class="d">two ways to invoke, per §1</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="sample">
+        <div class="sec-head"><span class="no">§3</span><h2>Typical Output</h2><span class="of">Fig.2</span></div>
+        <hr class="rule">
+        <div class="fig">
+            <div>
+                <p><b>It owns the render.</b> You supply the idea. The composition, the mood, the joke in the background, the choice to exaggerate or undercut, those are its call.</p>
+                <p><span class="tick">▸</span> input: <code>/clank cat in space</code></p>
+                <p><span class="tick">▸</span> output: one image, posted to the channel.</p>
+            </div>
+            <figure class="fig-frame" style="margin:0">
+                <img src="/media/demo-cat-in-space.png" alt="A &ldquo;cat in space&rdquo; /clank prompt and the astronaut-cat image CLANK-1 rendered, shown in a Discord channel." loading="lazy" />
+                <div class="bar"><span>FIG.2 · SAMPLE OUTPUT</span><span>PROMPT: "CAT IN SPACE"</span></div>
+            </figure>
+        </div>
+    </section>
+
+    <section id="install">
+        <div class="sec-head"><span class="no">§4</span><h2>Install</h2><span class="of">~10 s</span></div>
+        <hr class="rule">
+        <div class="order">
+            <h3>Put a render unit in your server.</h3>
+            <p>Installs with slash-command access only. No message-reading, no member list. Then type <code>/clank</code>.</p>
+            <a class="btn" href="#install" data-install>Add CLANK-1 to Discord →</a>
+        </div>
+    </section>
+
+    <footer>
+        <hr class="rule">
+        <div class="foot">
+            <span>CLANK-1 · image generation unit · © 2026 Sick Umbrella, LLC</span>
+            <span><a href="/support.html">support</a> · <a href="/terms.html">terms</a> · <a href="/privacy.html">privacy</a> · <a href="#install" data-install>add to discord</a> · rev 1.0</span>
+        </div>
+    </footer>
+
+</div>
+
+<script>
+    (function () {
+        var tpl = document.getElementById("logo").content;
+        var m = document.getElementById("mark-logo");
+        if (m) m.appendChild(tpl.cloneNode(true));
+
+        // Canonical install link (Discord Developer Portal → Installation).
+        // Must match the app's custom_install_url (Developer Portal / API), which
+        // is what the App Directory "Add App" button now uses. Both carry the
+        // post-install redirect to /start.html, so every path lands there.
+        var INSTALL_URL =
+            "https://discord.com/oauth2/authorize?client_id=1534174580225347646&scope=applications.commands&integration_type=0&response_type=code&redirect_uri=https%3A%2F%2Fclank.fyi%2Fstart.html";
+        document.querySelectorAll("[data-install]").forEach(function (a) {
+            a.setAttribute("href", INSTALL_URL);
+            a.setAttribute("target", "_blank");
+            a.setAttribute("rel", "noopener");
+            // The one conversion that matters: visit -> install click. Tagged with
+            // which CTA fired it, so we can tell the hero from the footer.
+            a.addEventListener("click", function () {
+                if (window.posthog) posthog.capture("install_clicked", { cta: a.textContent.trim().slice(0, 40) });
+            });
+        });
+    })();
+
+    // for the ones who open the console.
+    console.log("%cyou looked. good. -clank", "color:#ff6a2c;font:14px ui-monospace,monospace");
+</script>
+</body>
+</html>

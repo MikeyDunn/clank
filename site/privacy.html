@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clank: Privacy Policy</title>
+    <meta name="robots" content="noindex">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230c0e12'/><path d='M 20.8 24.8 A 10 10 0 1 1 20.8 7.2' fill='none' stroke='%23ff6a2c' stroke-width='5' stroke-linecap='round'/><rect x='18.3' y='12.8' width='6.4' height='6.4' rx='2' fill='%23ff6a2c'/></svg>">
+    <style>
+        :root {
+            --bg: #faf9f6; --panel: #fff; --ink: #1a1c20; --muted: #5c626b; --line: #e6e3dc;
+            --signal: #d1541f; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            --serif: "Iowan Old Style", Palatino, Georgia, serif;
+        }
+        @media (prefers-color-scheme: dark) { :root { --bg:#0d0f13; --panel:#14171d; --ink:#eae7e0; --muted:#899099; --line:#232833; --signal:#ff7a45; } }
+        :root[data-theme="light"] { --bg:#faf9f6; --panel:#fff; --ink:#1a1c20; --muted:#5c626b; --line:#e6e3dc; --signal:#d1541f; }
+        :root[data-theme="dark"] { --bg:#0d0f13; --panel:#14171d; --ink:#eae7e0; --muted:#899099; --line:#232833; --signal:#ff7a45; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--serif); font-size: 17px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+        .wrap { max-width: 660px; margin: 0 auto; padding: clamp(40px, 8vw, 80px) 22px 90px; }
+        .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--signal); }
+        h1 { font-weight: 500; font-size: clamp(30px, 6vw, 42px); letter-spacing: -0.015em; margin: 12px 0 4px; text-wrap: balance; }
+        .meta { font-family: var(--mono); font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+        .note { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--signal); border-radius: 4px; padding: 13px 16px; margin: 26px 0; }
+        h2 { font-family: var(--mono); font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); margin: 42px 0 10px; padding-top: 20px; border-top: 1px solid var(--line); }
+        p, li { color: var(--ink); }
+        p { margin: 0 0 15px; }
+        ul { margin: 0 0 15px; padding-left: 20px; }
+        li { margin-bottom: 8px; }
+        b { font-weight: 600; }
+        a { color: var(--signal); text-underline-offset: 2px; }
+        code { font-family: var(--mono); font-size: 0.86em; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; }
+        .fill { color: var(--signal); font-family: var(--mono); font-size: 0.9em; }
+        .back { display: inline-block; margin-top: 40px; font-family: var(--mono); font-size: 13px; }
+    </style>
+    <!-- Analytics: PostHog. The phc_ key is a public, client-side project key.
+         person_profiles=identified_only keeps anonymous visitors from creating
+         person records (cheaper + less personal data for a marketing site). -->
+    <script defer src="https://us-assets.i.posthog.com/static/array.js"
+        onload="posthog.init('phc_uRhXAN4A4qQmS5BechHuPUcgSXp7EnwVLkcfr5BWFzTk',{api_host:'https://us.i.posthog.com',person_profiles:'identified_only'})"></script>
+</head>
+<body>
+
+<div class="wrap">
+    <p class="eyebrow">Clank</p>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Last updated: August 4, 2026</p>
+
+    <p>Clank ("Clank", "we", "us") is a Discord application that generates images from text prompts. This policy explains what we collect when you use Clank, why, and your choices. It applies to the Clank bot and its website.</p>
+
+    <h2>What we collect</h2>
+    <p>We only collect what you hand to Clank by using it. We do <b>not</b> read your servers' general conversation.</p>
+    <ul>
+        <li><b>Discord identifiers</b>: your Discord user ID, username/display name, and the ID of the server and channel where you invoke Clank.</li>
+        <li><b>What you submit to Clank</b>: the text of your <code>/clank</code> prompts, and the content of any message you explicitly run <b>"Clank It"</b> on (its text and any attached image). We do not receive messages you don't point Clank at.</li>
+        <li><b>What Clank produces</b>: the images and text Clank generates in response, and Clank's own working notes about each request.</li>
+        <li><b>Usage counts and credits</b>: how many renders you've made and your purchased credit balance, for enforcing free daily limits and paid credits. These are tied to your Discord account and apply across every server you use Clank in.</li>
+    </ul>
+
+    <h2>How we use it</h2>
+    <ul>
+        <li>To generate the image or response you asked for.</li>
+        <li>To maintain a <b>per-server memory</b> so Clank's responses fit the community it's in. <b>Each server's memory is kept separate</b> from every other server's.</li>
+        <li>To enforce rate limits and free/paid usage. Unlike the per-server memory, your usage counts and credit balance are tied to your Discord account, so one daily allowance and one balance apply across all servers.</li>
+        <li>To operate, debug, and improve the service.</li>
+    </ul>
+    <p>We do <b>not</b> sell your data, and we do not use it for advertising.</p>
+
+    <h2>The website</h2>
+    <p>The clank.fyi website uses <b>PostHog</b> for basic analytics, so we can see how many people visit and whether they go on to install Clank. This sets cookies and records pages viewed, referrer, and coarse device/location data. It applies to the <b>website only</b>, not to using Clank inside Discord. You can block it with any tracker-blocking extension or your browser's Do Not Track setting, and the site works exactly the same.</p>
+
+    <h2>Who else is involved</h2>
+    <p>To run Clank we share the minimum necessary with:</p>
+    <ul>
+        <li><b>AI model providers</b> (e.g. OpenRouter and the underlying model vendors): your prompt/reference image is sent to generate the result, subject to their terms.</li>
+        <li><b>Amazon Web Services</b>: hosting and storage (United States).</li>
+        <li><b>Discord</b>: the platform Clank runs on, governed by Discord's own policies.</li>
+    </ul>
+
+    <h2>Storage &amp; retention</h2>
+    <p>Data is stored on AWS in the United States. Prompts, generated images, and the per-server memory are retained for as long as Clank serves that server, so its memory persists. Generated images are hosted at non-guessable URLs to be shown in Discord.</p>
+
+    <h2>Your choices</h2>
+    <p>You can ask us to delete your data or a server's data by contacting <a href="mailto:contact@clank.fyi">contact@clank.fyi</a>. Removing Clank from a server stops new collection for that server. Discord-level data (your account) is managed in Discord.</p>
+
+    <h2>Children</h2>
+    <p>Clank is not directed to anyone under 13, and you must meet Discord's minimum age to use it.</p>
+
+    <h2>Changes</h2>
+    <p>We may update this policy; material changes will be reflected by the "last updated" date above.</p>
+
+    <h2>Contact</h2>
+    <p>Questions or requests: <a href="mailto:contact@clank.fyi">contact@clank.fyi</a>. Operated by Sick Umbrella, LLC.</p>
+
+    <a class="back" href="/">← clank.fyi</a> &nbsp;·&nbsp; <a class="back" href="/support.html">support</a>
+</div>
+<script>
+    (function () { try { var m = matchMedia("(prefers-color-scheme: dark)"); var s = function () { if (!document.documentElement.getAttribute("data-theme")) document.documentElement.style.colorScheme = m.matches ? "dark" : "light"; }; s(); } catch (e) {} })();
+</script>
+</body>
+</html>

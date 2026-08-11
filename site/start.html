@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CLANK-1 · Installed</title>
+    <meta name="description" content="Clank is installed. Here is how to use him.">
+    <meta name="robots" content="noindex">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2317191e'/><path d='M 20.8 24.8 A 10 10 0 1 1 20.8 7.2' fill='none' stroke='%23ff6a2c' stroke-width='5' stroke-linecap='round'/><rect x='18.3' y='12.8' width='6.4' height='6.4' rx='2' fill='%23ff6a2c'/></svg>">
+    <style>
+        :root {
+            color-scheme: dark;
+            --ink: #17191e; --panel: #101216; --line: #20242b; --line-2: #2c313a;
+            --fg: #d7dbe0; --dim: #7c828c; --dim-2: #565c66; --signal: #ff6a2c; --ok: #4bb98a;
+            --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
+        }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0; background: var(--ink); color: var(--fg);
+            font-family: var(--mono); font-size: 14px; line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+        a { color: var(--signal); text-decoration: none; }
+        a:hover { text-decoration: underline; text-underline-offset: 3px; }
+        ::selection { background: var(--signal); color: #120a05; }
+        .sheet { max-width: 640px; margin: 0 auto; padding: 0 clamp(14px, 4vw, 40px) 70px; }
+        .rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+        .rule.heavy { border-top: 2px solid var(--line-2); }
+        .lbl { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+
+        .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 26px 0 12px; flex-wrap: wrap; }
+        .mark { display: flex; align-items: center; gap: 12px; }
+        .mark svg { width: 28px; height: 28px; display: block; }
+        .mark .pn { font-size: 14px; letter-spacing: 0.06em; }
+        .mark .pn b { color: #fff; font-weight: 600; }
+        .mark .pn span { color: var(--dim); }
+
+        .status { display: flex; align-items: center; gap: 10px; margin-top: 40px; }
+        .status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); flex: none; }
+        .status .t { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ok); }
+        h1 { margin: 12px 0 0; font-size: clamp(30px, 6vw, 46px); font-weight: 600; color: #fff; letter-spacing: -0.015em; line-height: 1.05; }
+        .lede { color: var(--dim); margin: 14px 0 0; max-width: 48ch; }
+
+        .steps { margin-top: 38px; }
+        .step { display: grid; grid-template-columns: auto 1fr; gap: 16px; padding: 18px 0; border-top: 1px solid var(--line); align-items: start; }
+        .step .n { color: var(--signal); font-size: 12px; padding-top: 2px; }
+        .step p { margin: 0; }
+        .step .h { color: #fff; font-weight: 600; margin-bottom: 4px; }
+        .step .d { color: var(--dim); max-width: 52ch; }
+        .cmd { display: inline-block; background: var(--panel); border: 1px solid var(--line-2); border-radius: 3px; padding: 8px 12px; color: var(--fg); margin: 8px 0 2px; font-size: 13.5px; }
+        .cmd b { color: var(--signal); font-weight: 600; }
+
+        .note { margin-top: 34px; border: 1px solid var(--line); border-left: 2px solid var(--signal); border-radius: 3px; padding: 16px 18px; background: var(--panel); color: var(--dim); }
+        .note b { color: var(--fg); font-weight: 600; }
+
+        footer { margin-top: 44px; padding-top: 16px; }
+        .foot { display: flex; flex-wrap: wrap; gap: 6px 20px; justify-content: space-between; color: var(--dim-2); font-size: 11.5px; }
+        .foot a { color: var(--dim); }
+        .foot a:hover { color: var(--fg); }
+    </style>
+    <!-- Analytics: PostHog. The phc_ key is a public, client-side project key. -->
+    <script defer src="https://us-assets.i.posthog.com/static/array.js"
+        onload="posthog.init('phc_uRhXAN4A4qQmS5BechHuPUcgSXp7EnwVLkcfr5BWFzTk',{api_host:'https://us.i.posthog.com',person_profiles:'identified_only'});posthog.capture('install_completed')"></script>
+</head>
+<body>
+
+<template id="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M 20.8 24.8 A 10 10 0 1 1 20.8 7.2" fill="none" stroke="#ff6a2c" stroke-width="5" stroke-linecap="round" />
+        <rect x="18.3" y="12.8" width="6.4" height="6.4" rx="2" fill="#ff6a2c" />
+    </svg>
+</template>
+
+<div class="sheet">
+
+    <div class="top">
+        <div class="mark">
+            <span id="mark-logo"></span>
+            <span class="pn"><b>CLANK-1</b> <span>· image generation unit</span></span>
+        </div>
+        <span class="lbl">Installed</span>
+    </div>
+    <hr class="rule heavy">
+
+    <div class="status"><span class="dot"></span><span class="t">unit online</span></div>
+    <h1>Clank is in your server.</h1>
+    <p class="lede">Go back to Discord and give him something to draw.</p>
+
+    <div class="steps">
+        <div class="step">
+            <span class="n">01</span>
+            <div>
+                <p class="h">Type a prompt</p>
+                <p class="d">In any channel, start typing a slash command and pick Clank.</p>
+                <p class="cmd"><b>/clank</b> a raccoon piloting a submarine</p>
+            </div>
+        </div>
+        <div class="step">
+            <span class="n">02</span>
+            <div>
+                <p class="h">Or point him at a message</p>
+                <p class="d">Right-click (or long-press) any message, then <b>Apps → Clank It</b>. He riffs on it. If the message has an image, he uses it as a reference.</p>
+            </div>
+        </div>
+        <div class="step">
+            <span class="n">03</span>
+            <div>
+                <p class="h">Your first render is free</p>
+                <p class="d">Per person, no signup. After that, run <code>/credits</code> to see your balance and grab a pack.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="note">
+        <p style="margin:0"><b>Not seeing /clank yet?</b> Discord can take a few minutes to register new commands, occasionally up to an hour the very first time. Try fully quitting and reopening Discord if it is slow to appear.</p>
+    </div>
+
+    <footer>
+        <hr class="rule">
+        <div class="foot">
+            <span>CLANK-1 · © 2026 Sick Umbrella, LLC</span>
+            <span><a href="/">home</a> · <a href="/support.html">support</a> · <a href="/privacy.html">privacy</a></span>
+        </div>
+    </footer>
+
+</div>
+
+<script>
+    (function () {
+        var tpl = document.getElementById("logo").content;
+        var m = document.getElementById("mark-logo");
+        if (m) m.appendChild(tpl.cloneNode(true));
+        // Discord appends ?code=...&guild_id=... on the post-install redirect. We
+        // don't exchange the code (we only ever needed the install itself), so
+        // strip it: no reason to leave an auth code sitting in the address bar
+        // or leak it into a referrer.
+        if (location.search) history.replaceState({}, "", location.pathname);
+    })();
+</script>
+</body>
+</html>
