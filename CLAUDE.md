@@ -245,7 +245,8 @@ AGENTS.md CLAUDE.md     Agent instructions (vendor-neutral / Claude-specific)
 `npm test` (`node:test` via tsx). Auto-fix: `npm run lint:fix`. See [AGENTS.md](./AGENTS.md).
 
 ## Deployment & Local Testing
-Git remote: `origin` → `github.com/the operatoryDunn/clank.git`. Deploy with `npm run deploy:dev` (runs `sst deploy --stage dev`). Local live dev: `npm run dev` (`sst dev`).
+Git remote: `origin` → `github.com/MikeyDunn/clank.git`. Deploy with `npm run deploy:dev` (runs `sst deploy --stage dev`). Local live dev: `npm run dev` (`sst dev`).
+- **CD (GitHub Actions)**: `.github/workflows/deploy.yml` — MANUAL (`workflow_dispatch`) OIDC deploy, `prod` environment gate (never auto-deploys on push/PR). Dropdown **`backend`** runs `--stage dev`: the SST stage name `dev` is IMMUTABLE (renaming orphans every live `clank-dev-*` resource), so the label is deliberately decoupled from it. `site`/`all` also offered. Prefer local `npm run deploy:dev` for iteration — CD runs are slower.
 - Local scripts: `AWS_PROFILE=<your-profile> DYNAMODB_TABLE_NAME=clank-mind-dev node --env-file=.env scripts/x.ts` — `source .env` sets shell vars but doesn't export them to node children (→ null table / 401); `--env-file` does. Descending GSI via AWS CLI needs `--no-scan-index-forward`.
 - One-off `.mjs`/node scripts that `import` project deps (`@aws-sdk/*`, etc.) MUST run from inside the repo — ESM resolves `node_modules` from the script's own directory upward, and `NODE_PATH` is ignored (scratchpad scripts fail `ERR_MODULE_NOT_FOUND`). Put throwaway scripts in a repo subdir; scripts using only `node:` builtins + global `fetch` can live anywhere.
 - Adding new DynamoDB/s3vectors ops requires updating IAM in `sst.config.ts` — fails silently in Lambda otherwise
