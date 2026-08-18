@@ -18,6 +18,7 @@ import {
     consumeEntitlement,
     deleteOriginalResponse,
     editOriginalResponse,
+    fetchGuildContext,
     followupMessage,
     listEntitlements,
 } from '../../lib/platform/discord/index.js';
@@ -186,6 +187,21 @@ export const processDiscord = async (event: any, lambdaCtx: any = null) => {
         const tokenMap = memory.buildAliasTokens(profiles);
         const context = await mind.buildContext(userId, profiles);
 
+        // Where this came from: channel name/topic ride in free on the interaction
+        // payload; the guild name/description (the "what community is this" line,
+        // high-signal since the guild IS the tenant) is a cached fetch. Ephemeral.
+        const guild = await fetchGuildContext(guildId);
+        const channelName = event.channelName ? `#${event.channelName}` : null;
+        const channel =
+            channelName || event.channelTopic || guild?.name || guild?.description
+                ? {
+                      channel: channelName,
+                      topic: event.channelTopic || null,
+                      space: guild?.name || null,
+                      spaceDescription: guild?.description || null,
+                  }
+                : null;
+
         // Acting on someone's message → give Clank the social triangle (who
         // summoned / whose message / self-vs-other), same framing as Slack's 🤖.
         // If the picked message was a reply and Discord inlined the parent, feed
@@ -215,6 +231,7 @@ export const processDiscord = async (event: any, lambdaCtx: any = null) => {
             prompt,
             context,
             referenceImageBase64,
+            channel,
             requester: userName,
             tokenMap,
             summon,

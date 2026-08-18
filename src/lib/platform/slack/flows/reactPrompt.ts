@@ -20,6 +20,7 @@ import {
     ensureBotInChannel,
     fetchMessageContext,
     getBotIdentity,
+    getChannelContext,
     getPermalink,
     isOwnMessage,
     postEphemeral,
@@ -43,6 +44,37 @@ function summonCredit(
     else if (authorId) head = `🤖 <@${summonerId}> summoned Clank on <@${authorId}>'s message`;
     else head = `🤖 <@${summonerId}> summoned Clank`;
     return permalink ? `${head} · <${permalink}|source>` : head;
+}
+
+// Images in the surrounding conversation can hold the premise (a summon on a
+// text reply that's riffing on a picture shared moments earlier). Pull up to a
+// few of the most recent neighbours' images as CONTEXT — Clank decides whether
+// any are integral (submitResponse.references). The reacted message's OWN image
+// is the primary reference and is handled separately. Skips the target itself
+// and Clank's own messages; downloads run in parallel; failures are dropped.
+const MAX_CONTEXT_IMAGES = 3;
+async function collectContextImages(
+    surrounding: any[],
+    targetTs: string,
+    botUserId: string | null,
+    byUid: Map<string, any>
+): Promise<{ base64: string; note?: string | null }[]> {
+    const candidates = (surrounding || [])
+        .filter((m) => m.ts !== targetTs && !(m.user && botUserId && m.user === botUserId))
+        .map((m) => ({ m, img: extractImage(m) }))
+        .filter((x) => x.img)
+        .slice(-MAX_CONTEXT_IMAGES); // most recent neighbours
+
+    const downloads = await Promise.all(
+        candidates.map(async ({ m, img }) => {
+            const dl = await downloadReferenceImage(img);
+            if (!dl.ok || !dl.base64) return null;
+            const profile = m.user ? byUid.get(m.user) : null;
+            const handle = profile?.handle || profile?.displayName || null;
+            return { base64: dl.base64, note: handle ? `from @${handle}` : 'shared earlier in the conversation' };
+        })
+    );
+    return downloads.filter((d): d is { base64: string; note: string } => !!d);
 }
 
 async function processReactPrompt(event, deadlineMs: number | null = null) {
@@ -140,9 +172,10 @@ async function processReactPrompt(event, deadlineMs: number | null = null) {
 
         const resolvedPrompt = memory.resolveMentions(promptText, profiles);
         const tokenMap = memory.buildAliasTokens(profiles);
-        const [context, permalink] = await Promise.all([
+        const [context, permalink, channel] = await Promise.all([
             memory.buildContext(reactingUser, profiles),
             getPermalink(channelId, messageTs),
+            getChannelContext(channelId),
         ]);
         const credit = summonCredit(reactingUser, authorUserId, self, permalink);
 
@@ -184,12 +217,18 @@ async function processReactPrompt(event, deadlineMs: number | null = null) {
             authorUserId: authorUserId || null,
         };
 
+        // Context images from the surrounding conversation — Clank judges whether
+        // any are integral to the reacted message (submitResponse.references).
+        const contextImages = await collectContextImages(surrounding, messageTs, botUserId, byUid);
+
         // ── think → generate → classify (shared pipeline; summon-aware) ──
         // Silent retry: no visible "Generating…" message to swap, so no onRetry.
         const pipe = await runArtPipeline({
             prompt: resolvedPrompt,
             context,
             referenceImageBase64,
+            contextImages,
+            channel,
             tokenMap,
             summon: { author: authorHandle, summoner: summonerHandle, self, conversation },
             deadlineMs,

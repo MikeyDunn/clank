@@ -112,7 +112,7 @@ async function generateViaVllm(prompt: string, timeoutMs: number): Promise<any> 
 
 async function generateImage(
     imagePrompt: string,
-    referenceImageBase64: string | null = null,
+    referenceImages: string[] = [],
     modelOverride: string | null = null,
     deadlineMs: number | null = null
 ) {
@@ -120,7 +120,7 @@ async function generateImage(
 
     // Self-hosted backend first (text-to-image only). References + model
     // overrides bypass it and go straight to OpenRouter below.
-    if (process.env.VLLM_IMAGE_URL && !referenceImageBase64 && !modelOverride) {
+    if (process.env.VLLM_IMAGE_URL && !referenceImages.length && !modelOverride) {
         try {
             const response = await generateViaVllm(imagePrompt, Math.min(VLLM_TIMEOUT_MS, genTimeoutMs(deadlineMs)));
             console.log('Generated via vLLM (self-hosted)');
@@ -139,9 +139,9 @@ async function generateImage(
                 messages: [
                     {
                         role: 'user',
-                        content: referenceImageBase64
+                        content: referenceImages.length
                             ? [
-                                  { type: 'image_url', image_url: { url: referenceImageBase64 } },
+                                  ...referenceImages.map((url) => ({ type: 'image_url', image_url: { url } })),
                                   { type: 'text', text: framedPrompt },
                               ]
                             : framedPrompt,

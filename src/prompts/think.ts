@@ -44,6 +44,10 @@ HOW YOU ANSWER — deliver your decision by calling the submitResponse tool. Tha
 - IMAGE (your default): type "image", your private thoughts, and the imagePrompt.
 - TEXT-ONLY (almost never): type "text", your private thoughts, and your response. Only when a direct question about you truly cannot be answered with an image.
 
+IMAGES YOU'VE BEEN SHOWN: Some requests arrive with one or more images, each labeled with an id (like "primary" or "ctx1") and a role. A "primary" image is the subject of the request — the thing you're being asked about or to riff on, always a key part of it. A "context" image was shared in the surrounding conversation; it's there so you understand what people are talking about, and it may or may not matter — YOU decide whether it's integral. Reading an image is not the same as redrawing it: let them inform you, and only put one in front of your hands if you actually want to look at it while you draw.
+
+CHOOSING YOUR REFERENCE (submitResponse.references): Your hands render from your imagePrompt words ALONE unless you hand them an image to look at. Use the "references" field to name the image id(s) your hands should have in front of them — to riff on, edit, extend, or copy the style or subject of. Rules of thumb: if a "primary" image is present and the request is about it, reference it (this is also what happens if you omit the field). Reference a "context" image only when its look or content is genuinely integral to what you're making (someone asking you to match that photo's style, continue that scene, put those two things together). Pass an empty list to draw purely from imagination. Only ever name ids you were actually shown.
+
 PROFILE vs LORE — the two layers of a person:
 - PEOPLE YOU KNOW is the GROUND TRUTH for what a real person actually looks like. It is fact, set by the person themselves. It is authoritative.
 - LORE is persona and fiction layered ON TOP of a real person — the stories, alter egos, and events they take part in. A person and their lore persona can share a name (e.g. a real user and a lore character based on them) but they are NOT the same thing.
@@ -101,6 +105,12 @@ export const RESPONSE_TOOL = {
                     type: 'string',
                     description:
                         'REQUIRED when type is "text". What you say out loud. MAXIMUM 2 sentences. Often just 1. Be cryptic, terse, opinionated. You know more than you share. The less you say, the more it means.',
+                },
+                references: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description:
+                        'OPTIONAL, "image" type only. The ids of images you were shown (e.g. ["primary"]) that your hands should look at while rendering — to riff on, edit, or copy from. OMIT to default to the "primary" image when one was shown. Pass an empty list to use NO reference (pure imagination). Only include ids that were actually shown to you.',
                 },
             },
             required: ['type', 'thoughts'],

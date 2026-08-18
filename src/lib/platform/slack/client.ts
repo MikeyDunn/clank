@@ -7,6 +7,7 @@
 // aren't Web API methods, so they stay raw fetch.
 
 import { WebClient } from '@slack/web-api';
+import type { ChannelContext } from '../../imageProcessor/think.js';
 
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 const web = new WebClient(SLACK_BOT_TOKEN);
@@ -52,6 +53,26 @@ async function ensureBotInChannel(channelId): Promise<{ ok: true } | { ok: false
         const reason = error?.data?.error || 'check_failed';
         console.error('Channel membership check failed:', reason);
         return { ok: false, reason };
+    }
+}
+
+/** Channel context (name/topic/purpose) for the think step's "where" line.
+ *  Non-throwing: any failure → null (best-effort situational context, never
+ *  blocks a request). DMs/MPIMs have no name/topic → null (nothing renders). */
+async function getChannelContext(channelId: string): Promise<ChannelContext | null> {
+    try {
+        const info: any = await web.conversations.info({ channel: channelId });
+        const c = info?.channel;
+        if (!c || c.is_im || c.is_mpim) return null;
+        const ctx: ChannelContext = {
+            channel: c.name ? `#${c.name}` : null,
+            topic: c.topic?.value || null,
+            purpose: c.purpose?.value || null,
+        };
+        return ctx.channel || ctx.topic || ctx.purpose ? ctx : null;
+    } catch (error: any) {
+        console.warn('getChannelContext failed:', error?.data?.error || error.message);
+        return null;
     }
 }
 
@@ -212,6 +233,7 @@ export {
     fetchMessage,
     fetchMessageContext,
     getBotIdentity,
+    getChannelContext,
     getPermalink,
     isOwnMessage,
     openModal,
