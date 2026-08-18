@@ -48,6 +48,29 @@ export async function postChannelMessage(channelId: string, payload: unknown): P
     return rest.post(`/channels/${channelId}/messages`, { body: payload });
 }
 
+// Guild name + description for the think step's "where"/team line. The guild IS
+// the tenant, so its self-description is high-signal for a per-server Clank
+// ("what kind of community is this"). Cached per warm container (guild metadata
+// rarely changes) so it isn't a per-request REST call. Bot-token auth.
+// Non-throwing → null on any failure (best-effort situational context).
+const guildContextCache = new Map<string, { name: string | null; description: string | null }>();
+export async function fetchGuildContext(
+    guildId: string | null | undefined
+): Promise<{ name: string | null; description: string | null } | null> {
+    if (!guildId) return null;
+    const cached = guildContextCache.get(guildId);
+    if (cached) return cached;
+    try {
+        const g: any = await rest.get(`/guilds/${guildId}`);
+        const info = { name: g?.name || null, description: g?.description || null };
+        guildContextCache.set(guildId, info);
+        return info;
+    } catch (error: any) {
+        console.warn('fetchGuildContext failed:', error?.message);
+        return null;
+    }
+}
+
 /**
  * Mark a one-time-purchase (consumable) entitlement as consumed (bot token,
  * 204 on success). Called after granting the pack's credits so the SKU can be

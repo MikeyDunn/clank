@@ -11,7 +11,7 @@ import { downloadSlackFile } from '../platform/slack/index.js';
 import { LEGACY_SCOPE, type VectorScope } from '../vectors.js';
 import { generateImage } from './generate.js';
 import { classifyAxiosError, parseResponse, RETRYABLE_ERRORS } from './parse.js';
-import { type MessageContext, type SummonContext, think } from './think.js';
+import { type ChannelContext, type MessageContext, type SummonContext, type ThinkImage, think } from './think.js';
 import { detectImageMime } from './upload.js';
 
 // ── Reference image → base64 data URI (shared download + magic-byte sniff) ──
@@ -73,6 +73,12 @@ export interface ArtPipelineInput {
     prompt: string;
     context: string;
     referenceImageBase64?: string | null;
+    // Images from the surrounding conversation (the summon window) shown to Clank
+    // as CONTEXT — he decides if any are integral. Capped below. Never auto-sent
+    // to the image model; only ids Clank names in `references` reach his hands.
+    contextImages?: { base64: string; note?: string | null }[];
+    // Where the request came from (room + space) — ephemeral, never persisted.
+    channel?: ChannelContext | null;
     messageContext?: MessageContext | null;
     requester?: string | null;
     tokenMap?: Record<string, string[]>;
@@ -93,10 +99,36 @@ export interface ArtPipelineInput {
 // straight to the error path so the user gets a message instead of a dead Lambda.
 const RETRY_MIN_BUDGET_MS = 45_000;
 
+// Cap on context images shown to think (a summon window can hold many; each is
+// re-read per tool-loop turn, so this is the real cost lever). The primary
+// reference is separate and always shown.
+const MAX_CONTEXT_IMAGES = 3;
+// Cap on images actually forwarded to the image model, in case Clank names many.
+const MAX_GEN_REFS = 3;
+
+/** Map Clank's chosen image ids back to data URIs for the generator. Field
+ *  omitted (not an array) → the primary image if one exists (legacy default).
+ *  Explicit empty array → no reference (pure imagination). Unknown ids are
+ *  dropped; the result is capped. */
+export function resolveReferences(images: ThinkImage[], references: unknown): string[] {
+    const byId = new Map(images.map((i) => [i.id, i.base64]));
+    if (Array.isArray(references)) {
+        return references
+            .filter((r): r is string => typeof r === 'string')
+            .map((id) => byId.get(id))
+            .filter((b): b is string => !!b)
+            .slice(0, MAX_GEN_REFS);
+    }
+    const primary = images.find((i) => i.role === 'primary');
+    return primary ? [primary.base64] : [];
+}
+
 export async function runArtPipeline({
     prompt,
     context,
     referenceImageBase64 = null,
+    contextImages = [],
+    channel = null,
     messageContext = null,
     requester = null,
     tokenMap = {},
@@ -105,16 +137,28 @@ export async function runArtPipeline({
     onRetry = null,
     deadlineMs = null,
 }: ArtPipelineInput): Promise<ArtOutcome> {
+    // The labeled image set Clank sees: the primary reference (the subject —
+    // always shown) plus a capped set of context images from the surrounding
+    // conversation. Cost lives here (each is re-read per tool turn), so the
+    // context set is bounded; which of them reach his hands is nearly free and
+    // is Clank's call (`references`).
+    const images: ThinkImage[] = [];
+    if (referenceImageBase64) images.push({ id: 'primary', base64: referenceImageBase64, role: 'primary' });
+    for (const [i, c] of contextImages.slice(0, MAX_CONTEXT_IMAGES).entries()) {
+        images.push({ id: `ctx${i + 1}`, base64: c.base64, role: 'context', note: c.note ?? null });
+    }
+
     const thinkResult = await think(
         prompt,
         context,
-        referenceImageBase64,
+        images,
         messageContext,
         requester,
         tokenMap,
         summon,
         null,
-        vectorScope
+        vectorScope,
+        channel
     );
     let cost = thinkResult.cost || 0;
 
@@ -126,14 +170,19 @@ export async function runArtPipeline({
     const imagePrompt = thinkResult.imagePrompt || prompt;
     console.log('Image prompt:', imagePrompt.substring(0, 200));
 
-    let genResult = await generateImage(imagePrompt, referenceImageBase64, null, deadlineMs);
+    // Which images reach Clank's hands: the ids HE chose (`references`), mapped
+    // back to data. Omitted → the primary reference (legacy default); [] → none.
+    const genRefs = resolveReferences(images, thinkResult.references);
+    if (genRefs.length) console.log(`Generate refs: ${genRefs.length}`);
+
+    let genResult = await generateImage(imagePrompt, genRefs, null, deadlineMs);
     if (genResult.error) {
         const { errorType } = classifyAxiosError(genResult.error);
         const budgetLeft = deadlineMs ? deadlineMs - Date.now() : Number.POSITIVE_INFINITY;
         if (RETRYABLE_ERRORS.has(errorType) && budgetLeft > RETRY_MIN_BUDGET_MS) {
             console.log(`Retrying after transient error: ${errorType} (${Math.round(budgetLeft / 1000)}s left)`);
             if (onRetry) await onRetry(errorType);
-            genResult = await generateImage(imagePrompt, referenceImageBase64, null, deadlineMs);
+            genResult = await generateImage(imagePrompt, genRefs, null, deadlineMs);
         } else if (RETRYABLE_ERRORS.has(errorType)) {
             console.log(`Skipping retry for ${errorType}: only ${Math.round(budgetLeft / 1000)}s of budget left`);
         }

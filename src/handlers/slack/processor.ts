@@ -9,6 +9,7 @@ import { processTshirt, processTshirtReaction } from '../../lib/platform/slack/f
 import {
     buildPublicBlocks,
     buildTextPublicBlocks,
+    getChannelContext,
     postEphemeral,
     postMessage,
     sendResponse,
@@ -73,6 +74,10 @@ async function processImage(event, lambdaCtx: any = null) {
     let prompt = rawPrompt; // resolved from <@UID> mentions once profiles load (below)
 
     try {
+        // Channel context (name/topic/purpose) for the "where" line — best-effort,
+        // fetched in parallel; a failure just omits it. Never blocks the request.
+        const channelPromise = getChannelContext(channelId);
+
         // ── Download reference image if provided (shared with the 🤖 flow) ──
         const ref = await downloadReferenceImage(referenceImage);
         if (!ref.ok) {
@@ -106,6 +111,7 @@ async function processImage(event, lambdaCtx: any = null) {
             prompt,
             context,
             referenceImageBase64,
+            channel: await channelPromise,
             messageContext,
             requester: userInfo.displayName || userInfo.handle,
             tokenMap,

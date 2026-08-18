@@ -123,7 +123,11 @@ async function processTshirt(event) {
 
         // Use gpt-5-image (not mini) for higher fidelity to the reference
         console.log('Tshirt generating with reference image (gpt-5-image)');
-        const genResult = await generateImage(shirtPrompt, referenceBase64, 'openai/gpt-5-image');
+        const genResult = await generateImage(
+            shirtPrompt,
+            referenceBase64 ? [referenceBase64] : [],
+            'openai/gpt-5-image'
+        );
         if (genResult.error) {
             console.error('Tshirt generate error:', genResult.error.response?.data || genResult.error.message);
             await send({ text: "⚠️ Couldn't generate the shirt design. Try again." });

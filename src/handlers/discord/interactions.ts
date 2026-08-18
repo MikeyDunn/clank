@@ -51,6 +51,11 @@ export const handleDiscordInteraction = async (event: any) => {
         const common = {
             interactionToken: body.token,
             channelId: body.channel_id,
+            // The interaction carries a partial channel object — name + topic for
+            // free (no REST fetch). Guild name/description is fetched (cached) in
+            // the processor. Both feed the think step's "where" line.
+            channelName: body.channel?.name || null,
+            channelTopic: body.channel?.topic || null,
             guildId: body.guild_id,
             userId: user.id || null,
             userName: user.global_name || user.username || null,
