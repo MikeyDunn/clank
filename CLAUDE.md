@@ -1,7 +1,7 @@
 # Clank
 
 ## Project Summary
-Clank is a **multi-platform, multi-tenant** image-generation bot. On Slack he answers `/clank`, the "Ask Clank" shortcut, and 👕/🤖 reactions; on Discord he answers `/clank`, a "Clank It" message context-menu command, and `/credits` (paid credit packs). He runs on AWS Lambda (deployed with SST) and uses OpenRouter for image generation + introspection. Each community gets its own persistent "mind" (DynamoDB + S3 Vectors) that evolves through interactions and periodic self-reflection. The original Slack group runs on `clank-mind-dev` (untenanted); every other community is a tenant on the shared `clank-mind-prod` store, fully isolated. See **Multi-Tenancy** below.
+Clank is a **multi-platform, multi-tenant** image-generation bot. On Slack he answers `/clank`, the "Ask Clank" shortcut, and 👕/🤖 reactions; on Discord he answers `/clank`, a "Summon Clank" message context-menu command, and `/credits` (paid credit packs). He runs on AWS Lambda (deployed with SST) and uses OpenRouter for image generation + introspection. Each community gets its own persistent "mind" (DynamoDB + S3 Vectors) that evolves through interactions and periodic self-reflection. The original Slack group runs on `clank-mind-dev` (untenanted); every other community is a tenant on the shared `clank-mind-prod` store, fully isolated. See **Multi-Tenancy** below.
 
 > **Deploying your own?** This is the public engineering doc. Instance-specific
 > infra, secrets, and support runbooks live in a gitignored `CLAUDE.local.md`
@@ -31,7 +31,7 @@ The goal is an organic, evolving AI personality — not a feature checklist. Whe
 | `slackInteraction` | `src/handlers/slack/interactions.handleInteraction` | 30s | "Ask Clank" / "Make T-Shirt" message shortcuts + Ask Clank modal submission (no buttons — results post directly) |
 | `slackEvents` | `src/handlers/slack/events.handleEvent` | 10s | Events API — 👕 reactions → t-shirt; 🤖 reaction → respond to the reacted message |
 | `imageProcessor` | `src/handlers/slack/processor.processImage` | 300s | Async (Slack): think (with lore tools) → generate → deliver |
-| Discord interactions | `src/handlers/discord/interactions.handleDiscordInteraction` | 10s | `POST /discord/interactions` — Ed25519 verify, PING, defer /clank + "Clank It" + /credits, async-invoke the processor |
+| Discord interactions | `src/handlers/discord/interactions.handleDiscordInteraction` | 10s | `POST /discord/interactions` — Ed25519 verify, PING, defer /clank + "Summon Clank" + /credits, async-invoke the processor |
 | `DiscordProcessor` | `src/handlers/discord/processor.processDiscord` | 300s | Async (Discord): per-guild mind → think → generate → edit deferred reply. IAM for prod stores ONLY (no `clank-mind-dev`). No sharp layer (no t-shirts). |
 | `ImessageApi` | `src/handlers/imessage/api.handleImessage` | 300s | **Function URL** (sync long calls): `/auth` (Apple JWKS verify → session JWT; env-gated dev branch), `/generate` (per-chat `forTenant` mind → pipeline → signed DRAFT token, writes nothing), `/commit` (verify draft → remember+reflect). Two-phase per spec Gap 2: refusals/errors + never-INSERTED drafts don't enter memory. Commit fires client-side at INSERT (deterministic, our button) — NOT on Apple's send callbacks (a closed pane never receives didStartSending; the operator's call 2026-08-08). Insert also auto-dismisses the pane. Draft TTL 24h to cover the retry-on-next-activation path. Metering seams present, not engaged until StoreKit. Prod-only IAM; bills the Discord OpenRouter key. |
 
@@ -78,9 +78,9 @@ The memory **logic** (context build, remember, reflect) is platform- and tenant-
 
 ## Discord (HTTP interactions — no gateway/persistent bot)
 Serverless, same shape as Slack (ack-then-async). Adapter in `lib/platform/discord/` (`verify` Ed25519, `client` @discordjs/rest, `message` reader). `handlers/discord/interactions.ts` verifies + routes; `handlers/discord/processor.ts` runs the shared core against the guild's `forTenant` mind.
-- **`/clank <prompt>`** — CHAT_INPUT slash command. **"Clank It"** — MESSAGE context-menu command (right-click → Apps): the target message IS the prompt (text + first image attachment + author + inlined reply-parent if present), reuses `downloadReferenceImage` (Discord CDN is public → `isPublic` fetch) + the same **summon framing** as Slack's 🤖.
+- **`/clank <prompt>`** — CHAT_INPUT slash command. **"Summon Clank"** — MESSAGE context-menu command (right-click → Apps): the target message IS the prompt (text + first image attachment + author + inlined reply-parent if present), reuses `downloadReferenceImage` (Discord CDN is public → `isPublic` fetch) + the same **summon framing** as Slack's 🤖.
 - **Each GUILD is a tenant** (`tenantId('discord', guildId)`) — a blank-slate Clank per server. Reactions (🤖) are NOT possible here (they need a persistent gateway worker); the message menu is the HTTP-interactions equivalent.
-- **Commands are GUILD-ONLY** (`integration_types:[0]`, `contexts:[0]`) — no user-install "use everywhere", keeping tenancy = one mind per server. Register all three (`/clank`, "Clank It", `/credits`) via `scripts/register-discord-command.ts` (needs `DISCORD_*` in `.env`; global commands take ~1h to first appear).
+- **Commands are GUILD-ONLY** (`integration_types:[0]`, `contexts:[0]`) — no user-install "use everywhere", keeping tenancy = one mind per server. Register all three (`/clank`, "Summon Clank", `/credits`) via `scripts/register-discord-command.ts` (needs `DISCORD_*` in `.env`; global commands take ~1h to first appear).
 - **Delivery**: edit the deferred reply via the interaction token (`auth:false`, no bot token). Images upload as a FILE whose attachment `description` is Clank's thoughts — Discord's alt-text channel (the "ALT" badge), the same hidden signature Slack carries in `alt_text`. Falls back to embedding the S3 URL if the fetch fails.
 - **Appearance policy**: Discord tenants run **pure emergence** — nothing populates `appearance`/`aliases` (they were always manual scripts against the Slack table), so `buildContext` renders no "WHAT THEY LOOK LIKE" line and Clank interprets people like emergent characters (Pissatron/Carl). Slack keeps its frozen curated profiles. This split is FREE (separate stores) and deliberate — curation protects fidelity to real people you *know*; strangers have no ground truth to protect. See Known Decisions.
 
@@ -181,7 +181,7 @@ src/
       events.ts         Events API — 👕 reactions → t-shirt; 🤖 → summon
       processor.ts      Slack async worker/orchestrator (was lib/imageProcessor/index.ts): context → pipeline → Slack DeliveryAdapter → consumeOutcome
     discord/
-      interactions.ts   Discord HTTP endpoint — verify, PING, route /clank + "Clank It" + /credits → defer + async-invoke
+      interactions.ts   Discord HTTP endpoint — verify, PING, route /clank + "Summon Clank" + /credits → defer + async-invoke
       webhook.ts        Discord webhook events — ENTITLEMENT_CREATE (grant) / ENTITLEMENT_DELETE (refund clawback)
       processor.ts      Discord async worker — per-guild forTenant mind → reconcileCredits (List Entitlements API) → pipeline → consumeOutcome → edit deferred reply; also handles /credits (balance + buy buttons)
     imessage/
@@ -206,7 +206,7 @@ src/
     imageProcessor/     THE SHARED CORE — platform-neutral art flow ONLY (no platform imports)
       think.ts          Clank's brain: tool-calling lore recall, structured output via submitResponse, prompt caching
       generate.ts       Mini hand: image from imagePrompt (no context) + deadline-aware genTimeoutMs
-      summon.ts         REACTED_MARKER — cross-platform summon-framing anchor (think + Slack 🤖 + Discord "Clank It")
+      summon.ts         REACTED_MARKER — cross-platform summon-framing anchor (think + Slack 🤖 + Discord "Summon Clank")
       upload.ts         S3 upload + detectImageMime (magic-byte sniff)
       parse.ts          Response parsing + error classification (ParseResult type)
       pipeline.ts       runArtPipeline (think → generate → classify → ArtOutcome) + downloadReferenceImage
@@ -258,7 +258,7 @@ cd /Users/user/dev/clank
 npm run deploy:dev                                # deploy bot (sst deploy --stage dev) — outputs discordEndpoint too
 npm run deploy:site                               # deploy the <your-site> static site (isolated `site` stage; SITE_PREVIEW=1 skips the domain)
 npx sst logs --stage dev                          # logs (watch [Think] recalls=...)
-node --env-file=.env --import tsx scripts/register-discord-command.ts   # (re)register /clank + "Clank It" + /credits (guild-only)
+node --env-file=.env --import tsx scripts/register-discord-command.ts   # (re)register /clank + "Summon Clank" + /credits (guild-only)
 AWS_PROFILE=<your-profile> node --import tsx scripts/report.ts   # mind snapshot — SLACK ONLY (clank-mind-dev; no tenant support yet)
 # Discord mind spot-check (no report tool yet): scan clank-mind-prod for TENANT#discord:<guildId>#…
 source .env && curl -s "https://openrouter.ai/api/v1/credits" -H "Authorization: Bearer $OPENROUTER_API_KEY"   # balance
@@ -275,7 +275,7 @@ Discord Lambda log group **hash rotates on every deploy** — re-find with `aws 
 - **Stateful stays external (by design)** — SST manages the compute (Lambdas, API, domain, images bucket); the DynamoDB table + S3 Vectors bucket are referenced by name + IAM, never owned by SST. Decouples the data lifecycle from deploys (no deploy/remove can touch Clank's mind), and S3 Vectors is too new for IaC providers to manage anyway. Flip to SST-owned only if we ever need multiple from-scratch environments (careful Pulumi import + `protect`)
 - **Multi-tenant via a MindStore seam** — memory logic is tenant-neutral; `LegacyStore` (Slack, `db.ts`, untenanted, bound by default) and `ElectroStore` (prod, ElectroDB, tenant-scoped) COEXIST. ElectroDB is prod-ONLY (legacy rows lack its `__edb_e__` stamp). Callers pass logical attributes; stores own physical keys. Slack stays byte-identical until its own migration
 - **Appearance: pure emergence public / frozen curated Slack** — curation protects fidelity to real people you KNOW (ground truth); public strangers have no ground truth to protect, so a self/troll description can't be "wrong". Discord tenants never populate `appearance`/`aliases` → Clank interprets like emergent characters. DON'T build AI auto-curation of lore/faces — that's what corrupted Slack profiles and it breaks "Clank never invents canon". The scalable answer is emergence + (optional) self-service, never automated editing
-- **Discord = HTTP interactions, not a gateway bot** — serverless. `/clank` + "Clank It" MESSAGE context-menu (the summon-a-message equivalent). Emoji reactions (🤖) are impossible without an always-on gateway worker — deliberately deferred. Commands are guild-only (`integration_types:[0]`) so tenancy stays one-mind-per-server. Delivery edits the deferred reply via the interaction token (no bot token); thoughts ride in the image's attachment `description` (the alt-text easter egg)
+- **Discord = HTTP interactions, not a gateway bot** — serverless. `/clank` + "Summon Clank" MESSAGE context-menu (the summon-a-message equivalent). Emoji reactions (🤖) are impossible without an always-on gateway worker — deliberately deferred. Commands are guild-only (`integration_types:[0]`) so tenancy stays one-mind-per-server. Delivery edits the deferred reply via the interaction token (no bot token); thoughts ride in the image's attachment `description` (the alt-text easter egg)
 - **consumeOutcome is the shared delivery back-half** — `runArtPipeline` → `ArtOutcome`, then `consumeOutcome(pipe, ctx, adapter)` owns remember/reflect/classify; each caller (Slack /clank, 🤖, Discord) supplies a 3-method `DeliveryAdapter`. `ctx.mind` selects the tenant mind (defaults to legacy → Slack unchanged)
 - **Personality is NOT hardcoded** — Clank evolves through interactions + reflection
 - **Clank owns his art** — no awareness of the think/generate split; failures are his. The imagePrompt is his interpretation (ARTISTIC VOICE), not a neutral transcription — personality must reach the IMAGE, since users never see his thoughts

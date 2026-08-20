@@ -3,7 +3,7 @@
 // Ed25519 signature, answers Discord's PING health-check, and routes both
 // application commands:
 //   • /clank              — CHAT_INPUT slash command (typed prompt)
-//   • "Clank It"          — MESSAGE context-menu command (summon onto a message)
+//   • "Summon Clank"          — MESSAGE context-menu command (summon onto a message)
 // Both ack with a DEFERRED response (Discord requires a reply within 3s), then
 // hand off to the async processor, which edits the deferred message via the
 // interaction token (valid 15 min). Same ack-then-async shape as Slack.
@@ -43,7 +43,7 @@ export const handleDiscordInteraction = async (event: any) => {
         return json(200, { type: InteractionResponseType.PONG });
     }
 
-    // 2. Application command (slash /clank OR the "Clank It" message menu).
+    // 2. Application command (slash /clank OR the "Summon Clank" message menu).
     if (body.type === InteractionType.APPLICATION_COMMAND) {
         const data = body.data || {};
         // Discord nests the user under `member` in a guild, `user` in a DM.
@@ -61,7 +61,7 @@ export const handleDiscordInteraction = async (event: any) => {
             userName: user.global_name || user.username || null,
         };
 
-        // "Clank It" — MESSAGE context menu: the target message IS the prompt.
+        // "Summon Clank" — MESSAGE context menu: the target message IS the prompt.
         if (data.type === MESSAGE_COMMAND) {
             const target = data.resolved?.messages?.[data.target_id];
             const msg = target ? readDiscordMessage(target) : null;

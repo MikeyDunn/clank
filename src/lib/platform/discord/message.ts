@@ -1,6 +1,6 @@
 // ─── Discord message reader ──────────────────────────────────────
 // Reads a message from an interaction's `data.resolved.messages` (what a MESSAGE
-// context-menu command — "Clank It" — delivers) into the pieces Clank needs:
+// context-menu command — "Summon Clank" — delivers) into the pieces Clank needs:
 // its text and the first image attachment. The Discord twin of the Slack
 // messageContent reader; Discord's message shape (content + attachments) differs
 // from Slack's (files/blocks), so it's its own small function.
@@ -24,7 +24,7 @@ function firstImage(attachments: any[]): any {
 
 /** The image URL on a message: a real attachment first, else an EMBED image.
  *  Embeds cover the very common case of a message that's just a pasted image
- *  link (or a link unfurl) — without this, "Clank It" on one of those loses the
+ *  link (or a link unfurl) — without this, "Summon Clank" on one of those loses the
  *  picture entirely and can even report "nothing to work with". */
 function imageUrlOf(msg: any): string | null {
     const attached = firstImage(msg?.attachments || []);

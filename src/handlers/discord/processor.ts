@@ -67,7 +67,7 @@ export const processDiscord = async (event: any, lambdaCtx: any = null) => {
     const deadlineMs = lambdaCtx?.getRemainingTimeInMillis ? Date.now() + lambdaCtx.getRemainingTimeInMillis() : null;
     const { source, interactionToken, userId, userName, guildId } = event;
     const isMessage = source === 'discord-message';
-    // Slash: the typed prompt. Message menu ("Clank It"): the target message's
+    // Slash: the typed prompt. Message menu ("Summon Clank"): the target message's
     // text IS the prompt, and it may carry an image + an author to summon onto.
     const rawPrompt = isMessage ? event.messageText || '' : event.prompt || '';
     const userInfo = {
@@ -82,7 +82,7 @@ export const processDiscord = async (event: any, lambdaCtx: any = null) => {
     const mind = memory.forTenant({ tenant: tenantId('discord', guildId || `dm:${userId}`) });
 
     // Deliver by editing the deferred "Clank is thinking…" reply (PUBLIC on
-    // /clank + "Clank It"). Only a finished image or Clank's text reply uses this.
+    // /clank + "Summon Clank"). Only a finished image or Clank's text reply uses this.
     const deliver = (payload: any) =>
         editOriginalResponse(interactionToken, payload).catch((e: any) =>
             console.error('Discord editOriginal failed:', e.message)
@@ -215,7 +215,7 @@ export const processDiscord = async (event: any, lambdaCtx: any = null) => {
                 const tAuthor = event.authorName ? `@${event.authorName}` : 'someone';
                 const parentLine = memory.resolveMentions(event.parentText, profiles).slice(0, 350);
                 conversation = `${pAuthor}: "${parentLine}"\n${tAuthor}: "${prompt.slice(0, 350)}" ${REACTED_MARKER}`;
-                console.log('Discord Clank It: reply-parent context attached');
+                console.log('Discord Summon Clank: reply-parent context attached');
             }
             summon = {
                 author: event.authorName || null,
