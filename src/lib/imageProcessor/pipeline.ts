@@ -33,6 +33,62 @@ async function fetchNoRedirect(url: string, noRedirect: boolean): Promise<Respon
     return res;
 }
 
+// ── Fit an image to the vision model's PER-IMAGE limits ──────────
+// Verified against OpenRouter→Sonnet 5: a single image is rejected once its
+// base64 exceeds 10MB (~7.5MB raw) OR any side exceeds 8000px. The limit is
+// per-image, not per-request (30MB across 8 images passed), so fitting EACH
+// image is sufficient. Phone photos routinely blow this — a 10.5MB summon image
+// is exactly what broke summons — so we downscale to 1568px on the long edge,
+// which is Anthropic's own internal downscale target (no vision-quality loss)
+// and also cuts vision-token cost.
+const MODEL_MAX_EDGE = 1568;
+const FIT_THRESHOLD = 4_000_000; // below this (base64 ~5.3MB) an image is already safe → leave it untouched
+const SAFE_B64_LIMIT = 9_000_000; // margin under the hard 10MB base64 ceiling (fallback path only)
+
+// sharp lives in a Lambda LAYER on the Slack processor (external from the
+// bundle), and is absent on Discord/iMessage. Load it lazily so this shared
+// module imports everywhere; cache the result per warm container.
+let sharpModule: any;
+async function loadSharp(): Promise<any> {
+    if (sharpModule !== undefined) return sharpModule;
+    try {
+        sharpModule = (await import('sharp')).default;
+    } catch {
+        sharpModule = null;
+    }
+    return sharpModule;
+}
+
+/** Ensure a single image is within the model's per-image limits. Small images
+ *  pass through untouched (preserving quality/format). Large ones are
+ *  downscaled with sharp (Slack) to <=1568px re-encoded as JPEG (always safely
+ *  small); without sharp (Discord/iMessage) an oversized image is rejected —
+ *  a clean skip beats the opaque "Provider returned error". */
+async function fitForModel(buf: Buffer, mime: string): Promise<{ buf: Buffer; mime: string } | null> {
+    if (buf.length < FIT_THRESHOLD) return { buf, mime };
+    const sharp = await loadSharp();
+    if (sharp) {
+        try {
+            const out = await sharp(buf)
+                .rotate() // honor EXIF orientation before metadata is dropped
+                .resize(MODEL_MAX_EDGE, MODEL_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 85 })
+                .toBuffer();
+            return { buf: out, mime: 'image/jpeg' };
+        } catch (err: any) {
+            console.warn('sharp downscale failed:', err.message);
+        }
+    }
+    // No sharp here (or it failed): base64 is ~4/3 of raw bytes.
+    if (Math.ceil(buf.length / 3) * 4 > SAFE_B64_LIMIT) {
+        console.warn(
+            `Image ${Math.round(buf.length / 1024)}KB exceeds the per-image limit and can't be downscaled here — skipping`
+        );
+        return null;
+    }
+    return { buf, mime };
+}
+
 export async function downloadReferenceImage(referenceImage: any): Promise<RefDownload> {
     if (!referenceImage?.url) return { ok: true, base64: null };
     try {
@@ -50,8 +106,16 @@ export async function downloadReferenceImage(referenceImage: any): Promise<RefDo
             console.error('Invalid reference image. First bytes:', buf.slice(0, 20).toString('hex'));
             return { ok: false, reason: 'invalid' };
         }
-        console.log('Reference image downloaded:', referenceImage.name, `${Math.round(buf.length / 1024)}KB`);
-        return { ok: true, base64: `data:${mime};base64,${buf.toString('base64')}` };
+        // Fit to the model's per-image limit so a big phone photo can't fail the
+        // whole request with an opaque provider error (the summon-outage bug).
+        const fitted = await fitForModel(buf, mime);
+        if (!fitted) return { ok: false, reason: 'invalid' };
+        console.log(
+            'Reference image ready:',
+            referenceImage.name,
+            `${Math.round(buf.length / 1024)}KB -> ${Math.round(fitted.buf.length / 1024)}KB`
+        );
+        return { ok: true, base64: `data:${fitted.mime};base64,${fitted.buf.toString('base64')}` };
     } catch (err: any) {
         console.error('Failed to download reference image:', err.message);
         return { ok: false, reason: 'download' };
