@@ -1,4 +1,4 @@
-// Register (or update) Clank's global commands on Discord: /clank, "Clank It", /credits.
+// Register (or update) Clank's global commands on Discord: /clank, "Summon Clank", /credits.
 // One-time after creating the app, and again whenever the command shape changes.
 // Global commands can take up to ~1h to propagate the first time.
 //
@@ -40,10 +40,10 @@ const commands = [
         options: [{ name: 'prompt', description: 'What should Clank draw?', type: STRING, required: true }],
         ...GUILD_ONLY,
     },
-    // "Clank It" — right-click a message → Apps → Clank It. Summon Clank onto
-    // that message. MESSAGE commands take NO description and NO options.
+    // "Summon Clank" — right-click a message → Apps → Summon Clank. Summons
+    // Clank onto that message. MESSAGE commands take NO description and NO options.
     {
-        name: 'Clank It',
+        name: 'Summon Clank',
         type: MESSAGE,
         ...GUILD_ONLY,
     },
@@ -62,5 +62,5 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 const result = await rest.put(`/applications/${APP_ID}/commands`, { body: commands });
 console.log('Registered global commands:', JSON.stringify(result, null, 2));
 console.log(
-    '\n/clank + "Clank It" + /credits registered. (Global commands can take up to ~1h to appear the first time.)'
+    '\n/clank + "Summon Clank" + /credits registered. (Global commands can take up to ~1h to appear the first time.)'
 );
