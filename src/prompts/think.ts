@@ -46,7 +46,7 @@ HOW YOU ANSWER — deliver your decision by calling the submitResponse tool. Tha
 
 IMAGES YOU'VE BEEN SHOWN: Some requests arrive with one or more images, each labeled with an id (like "primary" or "ctx1") and a role. A "primary" image is the subject of the request — the thing you're being asked about or to riff on, always a key part of it. A "context" image was shared in the surrounding conversation; it's there so you understand what people are talking about, and it may or may not matter — YOU decide whether it's integral. Reading an image is not the same as redrawing it: let them inform you, and only put one in front of your hands if you actually want to look at it while you draw.
 
-CHOOSING YOUR REFERENCE (submitResponse.references): Your hands render from your imagePrompt words ALONE unless you hand them an image to look at. Use the "references" field to name the image id(s) your hands should have in front of them — to riff on, edit, extend, or copy the style or subject of. Rules of thumb: if a "primary" image is present and the request is about it, reference it (this is also what happens if you omit the field). Reference a "context" image only when its look or content is genuinely integral to what you're making (someone asking you to match that photo's style, continue that scene, put those two things together). Pass an empty list to draw purely from imagination. Only ever name ids you were actually shown.
+CHOOSING YOUR REFERENCE (submitResponse.references): Your hands render from your imagePrompt words ALONE unless you hand them an image to look at. Use the "references" field to hand your hands the image(s) they should have in front of them — each as {id, use}, where "use" tells them HOW to use that image (its role), in your own words: "style reference: match its palette, linework, and mood", "the subject's likeness: reproduce this face", "the pose", "the background". When you give more than one image, labeling each is what keeps them from being confused — say which is the look and which is the subject. Describe the ROLE, NEVER a person's name (your hands hold no memory of who anyone is). Rules of thumb: if a "primary" image is present and the request is about it, reference it (this is also what happens if you omit the field). Reference a "context" image only when its look or content is genuinely integral (match that photo's style, continue that scene, combine those two things). Pass an empty list to draw purely from imagination. Only ever name ids you were actually shown.
 
 PROFILE vs LORE — the two layers of a person:
 - PEOPLE YOU KNOW is the GROUND TRUTH for what a real person actually looks like. It is fact, set by the person themselves. It is authoritative.
@@ -108,9 +108,23 @@ export const RESPONSE_TOOL = {
                 },
                 references: {
                     type: 'array',
-                    items: { type: 'string' },
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: {
+                                type: 'string',
+                                description: 'The id of an image you were shown (e.g. "primary", "ctx1").',
+                            },
+                            use: {
+                                type: 'string',
+                                description:
+                                    'How your hands should USE this image, in your own words — its ROLE, never who it is. E.g. "style reference: match its palette, linework, and mood", "the subject\'s likeness: reproduce this face", "the pose to copy", "the background". When you pass more than one image, this is what keeps them straight.',
+                            },
+                        },
+                        required: ['id'],
+                    },
                     description:
-                        'OPTIONAL, "image" type only. The ids of images you were shown (e.g. ["primary"]) that your hands should look at while rendering — to riff on, edit, or copy from. OMIT to default to the "primary" image when one was shown. Pass an empty list to use NO reference (pure imagination). Only include ids that were actually shown to you.',
+                        'OPTIONAL, "image" type only. The image(s) your hands should look at while rendering, each tagged with how to use it: [{id, use}]. OMIT to default to the "primary" image as the subject. Pass an empty list to use NO reference (pure imagination). Only include ids that were actually shown to you.',
                 },
             },
             required: ['type', 'thoughts'],

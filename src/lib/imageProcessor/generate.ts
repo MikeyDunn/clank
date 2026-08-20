@@ -112,7 +112,7 @@ async function generateViaVllm(prompt: string, timeoutMs: number): Promise<any> 
 
 async function generateImage(
     imagePrompt: string,
-    referenceImages: string[] = [],
+    referenceImages: { url: string; use?: string | null }[] = [],
     modelOverride: string | null = null,
     deadlineMs: number | null = null
 ) {
@@ -139,9 +139,18 @@ async function generateImage(
                 messages: [
                     {
                         role: 'user',
+                        // Each reference is preceded by Clank's own label for how to
+                        // use it ("style reference", "the subject's likeness", ...),
+                        // so the model doesn't have to guess which image is which.
                         content: referenceImages.length
                             ? [
-                                  ...referenceImages.map((url) => ({ type: 'image_url', image_url: { url } })),
+                                  ...referenceImages.flatMap((r) => [
+                                      {
+                                          type: 'text',
+                                          text: r.use ? `Reference image — use it as ${r.use}:` : 'Reference image:',
+                                      },
+                                      { type: 'image_url', image_url: { url: r.url } },
+                                  ]),
                                   { type: 'text', text: framedPrompt },
                               ]
                             : framedPrompt,

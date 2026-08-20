@@ -101,3 +101,27 @@ test('parseResponse: an OpenRouter image carries no backend tag or model name', 
     assert.equal(r.backend, null);
     assert.equal(r.modelName, null);
 });
+
+// ── image-model safety block detection (finish_reason) ──
+const noImage = (choice) => ({ choices: [{ message: { content: null }, ...choice }] });
+
+test('parseResponse: finish_reason content_filter → IMAGE_SAFETY', () => {
+    const r = parseResponse(noImage({ finish_reason: 'content_filter' }), Date.now());
+    assert.equal(r.outcome, 'no_image');
+    assert.equal(r.errorType, 'IMAGE_SAFETY');
+});
+
+test('parseResponse: native IMAGE_PROHIBITED_CONTENT → IMAGE_SAFETY', () => {
+    const r = parseResponse(noImage({ native_finish_reason: 'IMAGE_PROHIBITED_CONTENT' }), Date.now());
+    assert.equal(r.errorType, 'IMAGE_SAFETY');
+});
+
+test('parseResponse: empty STOP with no image → NO_IMAGE_GENERATED, not a safety block', () => {
+    const r = parseResponse(noImage({ finish_reason: 'stop', native_finish_reason: 'STOP' }), Date.now());
+    assert.equal(r.outcome, 'no_image');
+    assert.equal(r.errorType, 'NO_IMAGE_GENERATED');
+});
+
+test('getUserFriendlyError: IMAGE_SAFETY has its own message', () => {
+    assert.match(getUserFriendlyError('IMAGE_SAFETY'), /filter blocked/i);
+});

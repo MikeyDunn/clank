@@ -125,7 +125,7 @@ async function processTshirt(event) {
         console.log('Tshirt generating with reference image (gpt-5-image)');
         const genResult = await generateImage(
             shirtPrompt,
-            referenceBase64 ? [referenceBase64] : [],
+            referenceBase64 ? [{ url: referenceBase64, use: 'the design to convert into the shirt graphic' }] : [],
             'openai/gpt-5-image'
         );
         if (genResult.error) {

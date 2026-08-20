@@ -50,9 +50,22 @@ function parseResponse(response: any, startTime: number): ParseResult {
         };
     }
 
-    // No image returned — check if it's a content policy refusal
+    // No image returned. The image model's safety filter reports itself in the
+    // finish reason — `finish_reason: 'content_filter'` / `native_finish_reason:
+    // 'IMAGE_SAFETY' | 'IMAGE_PROHIBITED_CONTENT'`. That's a distinct outcome from
+    // a genuine empty completion or a think-style policy refusal, and (verified)
+    // it's STOCHASTIC: the same prompt often passes on a re-fire. Detecting it
+    // lets the pipeline retry and lets us say "filtered" instead of a mystery.
+    const choice = response.choices?.[0];
+    const nativeFinish = String(choice?.native_finish_reason || '');
+    const isSafetyBlock =
+        choice?.finish_reason === 'content_filter' || /IMAGE_SAFETY|PROHIBITED_CONTENT|SAFETY/i.test(nativeFinish);
     const textResponse = message?.content || 'No response content';
-    const errorType = isContentPolicyRefusal(textResponse) ? 'CONTENT_POLICY' : 'NO_IMAGE_GENERATED';
+    const errorType = isSafetyBlock
+        ? 'IMAGE_SAFETY'
+        : isContentPolicyRefusal(textResponse)
+          ? 'CONTENT_POLICY'
+          : 'NO_IMAGE_GENERATED';
     return {
         outcome: 'no_image',
         errorType,
@@ -150,6 +163,11 @@ const ERROR_MESSAGES = {
         '🤖 Model Not Available\nThe image generation model is not available. Please contact an administrator.',
     NO_IMAGE_GENERATED:
         "🎨 No Image Generated\nThe model responded but didn't generate an image. Try a different prompt.",
+    // The image model's content filter blocked it. It's stochastic (we already
+    // re-fired once), so "try again" is genuine advice, not a brush-off. NOT
+    // charged (isChargeableFailure is CONTENT_POLICY-only) — the block was free.
+    IMAGE_SAFETY:
+        "🎨 The image filter blocked that one. It's inconsistent — trying again or rephrasing usually gets it through.",
     // Charged (see consumeOutcome): the prompt was rejected, not our failure, and
     // the work was done. Say so plainly so a missing credit isn't a mystery.
     CONTENT_POLICY: '🚫 That prompt was declined by the content filter, so it used a credit. Rephrasing usually works.',
