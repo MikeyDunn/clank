@@ -16,8 +16,8 @@ const ctx2: ThinkImage = { id: 'ctx2', base64: 'd:CTX2', role: 'context' };
 
 // ── resolveReferences ────────────────────────────────────────────
 
-test('resolveReferences: field omitted → defaults to the primary image', () => {
-    assert.deepEqual(resolveReferences([primary, ctx1], undefined), [primary.base64]);
+test('resolveReferences: field omitted → the primary image, unlabeled', () => {
+    assert.deepEqual(resolveReferences([primary, ctx1], undefined), [{ url: primary.base64, use: null }]);
 });
 
 test('resolveReferences: omitted with no primary shown → no reference', () => {
@@ -28,16 +28,39 @@ test('resolveReferences: explicit empty array → no reference (pure imagination
     assert.deepEqual(resolveReferences([primary, ctx1], []), []);
 });
 
-test('resolveReferences: named ids map to their data, in the order named', () => {
-    assert.deepEqual(resolveReferences([primary, ctx1, ctx2], ['ctx1', 'primary']), [ctx1.base64, primary.base64]);
+test('resolveReferences: bare id strings still work (unlabeled), in order', () => {
+    assert.deepEqual(resolveReferences([primary, ctx1, ctx2], ['ctx1', 'primary']), [
+        { url: ctx1.base64, use: null },
+        { url: primary.base64, use: null },
+    ]);
 });
 
-test('resolveReferences: unknown ids are dropped', () => {
-    assert.deepEqual(resolveReferences([primary, ctx1], ['nope', 'ctx1']), [ctx1.base64]);
+test('resolveReferences: {id, use} carries the label through', () => {
+    assert.deepEqual(
+        resolveReferences(
+            [primary, ctx1],
+            [
+                { id: 'ctx1', use: 'style reference: match the palette' },
+                { id: 'primary', use: "the subject's likeness" },
+            ]
+        ),
+        [
+            { url: ctx1.base64, use: 'style reference: match the palette' },
+            { url: primary.base64, use: "the subject's likeness" },
+        ]
+    );
 });
 
-test('resolveReferences: non-string entries are ignored', () => {
-    assert.deepEqual(resolveReferences([primary], ['primary', 5, null]), [primary.base64]);
+test('resolveReferences: blank/whitespace use collapses to null', () => {
+    assert.deepEqual(resolveReferences([primary], [{ id: 'primary', use: '   ' }]), [
+        { url: primary.base64, use: null },
+    ]);
+});
+
+test('resolveReferences: unknown ids and shapeless entries are dropped', () => {
+    assert.deepEqual(resolveReferences([primary, ctx1], ['nope', { id: 'ctx1' }, 5, null, {}]), [
+        { url: ctx1.base64, use: null },
+    ]);
 });
 
 test('resolveReferences: forwarded images are capped at 3', () => {

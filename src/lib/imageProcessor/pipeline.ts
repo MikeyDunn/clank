@@ -106,21 +106,33 @@ const MAX_CONTEXT_IMAGES = 3;
 // Cap on images actually forwarded to the image model, in case Clank names many.
 const MAX_GEN_REFS = 3;
 
-/** Map Clank's chosen image ids back to data URIs for the generator. Field
- *  omitted (not an array) → the primary image if one exists (legacy default).
- *  Explicit empty array → no reference (pure imagination). Unknown ids are
- *  dropped; the result is capped. */
-export function resolveReferences(images: ThinkImage[], references: unknown): string[] {
+// A reference image handed to the generator, with Clank's own label for how his
+// hands should use it ("style reference", "the subject's likeness", ...).
+export type GenRef = { url: string; use?: string | null };
+
+/** Resolve Clank's chosen references to LABELED data URIs for the generator.
+ *  Each entry may be a bare id string OR {id, use} — `use` is his description of
+ *  how his hands should use that image. Field omitted (not an array) → the
+ *  primary image, unlabeled (legacy default). Explicit empty array → no
+ *  reference (pure imagination). Unknown ids are dropped; the result is capped. */
+export function resolveReferences(images: ThinkImage[], references: unknown): GenRef[] {
     const byId = new Map(images.map((i) => [i.id, i.base64]));
     if (Array.isArray(references)) {
-        return references
-            .filter((r): r is string => typeof r === 'string')
-            .map((id) => byId.get(id))
-            .filter((b): b is string => !!b)
-            .slice(0, MAX_GEN_REFS);
+        const out: GenRef[] = [];
+        for (const r of references) {
+            const id = typeof r === 'string' ? r : r && typeof r === 'object' ? (r as any).id : null;
+            const rawUse = r && typeof r === 'object' ? (r as any).use : null;
+            if (typeof id !== 'string') continue;
+            const url = byId.get(id);
+            if (!url) continue;
+            const use = typeof rawUse === 'string' && rawUse.trim() ? rawUse.trim().slice(0, 200) : null;
+            out.push({ url, use });
+            if (out.length >= MAX_GEN_REFS) break;
+        }
+        return out;
     }
     const primary = images.find((i) => i.role === 'primary');
-    return primary ? [primary.base64] : [];
+    return primary ? [{ url: primary.base64, use: null }] : [];
 }
 
 export async function runArtPipeline({
@@ -189,10 +201,30 @@ export async function runArtPipeline({
     }
     if (genResult.error) return { kind: 'generation_error', thinkResult, genResult, imagePrompt, cost };
 
-    const result = parseResponse(genResult.response, genResult.startTime);
-    const genCost = result.cost || 0;
-    cost += genCost;
-    console.log(`Generation cost: $${genCost.toFixed(4)}, total: $${cost.toFixed(4)}`);
+    let result = parseResponse(genResult.response, genResult.startTime);
+    cost += result.cost || 0;
+
+    // The image model's safety filter is STOCHASTIC — the same imagePrompt often
+    // passes on a re-fire (verified: identical prompts flip pass/block run to
+    // run), and a blocked call isn't billed. So on a no-image safety/empty block,
+    // re-fire the SAME prompt ONCE, budget permitting. Never re-think: Clank's
+    // wording isn't the variable, and re-thinking would waste ~$0.04 and risk
+    // worse wording. A block costs ~nothing, so this only pays off.
+    const budgetLeft = deadlineMs ? deadlineMs - Date.now() : Number.POSITIVE_INFINITY;
+    if (
+        result.outcome === 'no_image' &&
+        (result.errorType === 'IMAGE_SAFETY' || result.errorType === 'NO_IMAGE_GENERATED') &&
+        budgetLeft > RETRY_MIN_BUDGET_MS
+    ) {
+        console.log(`No image (${result.errorType}) — one free re-fire of the same prompt`);
+        const retry = await generateImage(imagePrompt, genRefs, null, deadlineMs);
+        if (!retry.error) {
+            const retried = parseResponse(retry.response, retry.startTime);
+            cost += retried.cost || 0;
+            if (retried.outcome === 'success') result = retried;
+        }
+    }
+    console.log(`Generation total: $${cost.toFixed(4)} (outcome: ${result.outcome})`);
 
     return result.outcome === 'success'
         ? { kind: 'image', thinkResult, result, imagePrompt, cost }
