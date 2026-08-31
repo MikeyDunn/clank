@@ -5,10 +5,11 @@ Instructions for AI coding agents working in this repo. (Vendor-neutral; see
 
 ## What this is
 
-Clank is a Slack bot that generates images via OpenRouter and keeps an evolving
-"mind" (identity + journal + vector memory) in DynamoDB and S3 Vectors. It runs
-on AWS Lambda, deployed with SST (Ion), written in TypeScript (ESM); SST/esbuild
-builds at deploy time.
+Clank is a multi-platform, multi-tenant image-generation bot (Slack + Discord,
+an iMessage extension in progress) that generates images via OpenRouter and
+keeps an evolving per-community "mind" (identity + journal + vector memory) in
+DynamoDB and S3 Vectors. It runs on AWS Lambda, deployed with SST (Ion), written
+in TypeScript (ESM); SST/esbuild builds at deploy time.
 
 ## Before you finish: run the checks
 
@@ -32,21 +33,24 @@ Individually: `npm run lint` (Biome), `npm run typecheck` (`tsc --noEmit`),
   try/catch with `console.error`).
 - **Pure logic lives apart from I/O** so it's testable — when you add branching
   logic to an I/O function, consider extracting the pure core (see
-  `src/lib/imageProcessor/productName.ts`) and unit-testing it.
+  `src/lib/platform/slack/flows/productName.ts`) and unit-testing it.
 - **Keep the typecheck green** — see the strictness settings in `tsconfig.json`.
 
 ## Layout
 
 ```
-src/handlers/   the 4 Lambda entry points — the ONLY things sst.config.ts calls
-src/lib/        implementation (memory/, imageProcessor/, platform/, ...)
-src/lib/platform/  external-platform adapters (slack.ts)
-scripts/        recurring ops tools (own DynamoDB clients; do NOT import src/lib)
-test/           node:test unit tests for the pure surface
+src/handlers/<platform>/   Lambda entry points (slack/, discord/, imessage/) —
+                           the ONLY things sst.config.ts calls
+src/lib/memory/            the mind: context, persistence, reflection, tenancy, metering
+src/lib/imageProcessor/    the shared platform-neutral core (think → generate → consume)
+src/lib/platform/<p>/      platform adapters + platform-specific flows (slack/, discord/)
+scripts/                   recurring ops tools (own DynamoDB clients; do NOT import src/lib)
+site/                      the product site (static, deployed via the `site` SST stage)
+test/                      node:test unit tests for the pure surface
 ```
 
-Rule of thumb: **root = project config, `src/` = code, `src/handlers/` = the deploy
-surface.**
+Rule of thumb: **root = project config, `src/` = code, `src/handlers/<platform>/` =
+the deploy surface.**
 
 ## Deploy
 
