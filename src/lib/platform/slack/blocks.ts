@@ -6,6 +6,33 @@ function stripMrkdwn(text: string): string {
     return (text || '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/_/g, '').replace(/\n\n+/g, '\n');
 }
 
+/**
+ * Sanitize user text for a single mrkdwn *bold* run — the context-line "human's
+ * words" convention consumed by t-shirt naming and Postie. A literal `*` would
+ * terminate the run early and bold can't span newlines, so both go; whitespace
+ * collapses to one spaced line; long text truncates at a word boundary with an
+ * ellipsis (also keeps the context element under Slack's length cap). Broadcast
+ * sequences (`<!here>`, `<!channel>`, `<!everyone>`, `<!subteam^…>`) are
+ * downgraded to plain `@here`-style text so echoing a message never re-pings.
+ * Returns null when nothing survives (callers omit the bold run entirely).
+ */
+function boldEcho(raw: string, max = 300): string | null {
+    let t = (raw || '')
+        .replace(/<!(channel|here|everyone)(?:\|[^>]*)?>/gi, '@$1')
+        .replace(/<!subteam\^[^>|]+\|@?([^>]*)>/g, '@$1')
+        .replace(/<!subteam\^[^>|]+>/g, '@group')
+        .replace(/\*/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!t) return null;
+    if (t.length > max) {
+        const cut = t.slice(0, max);
+        const space = cut.lastIndexOf(' ');
+        t = `${(space > 0 ? cut.slice(0, space) : cut).trimEnd()}…`;
+    }
+    return t;
+}
+
 function buildReferenceBlock(referenceImage) {
     if (!referenceImage?.permalink) return null;
     return {
@@ -32,9 +59,14 @@ function buildPublicBlocks({
     fromWolf,
 }) {
     const author = authorId || userId;
+    // The bold run must be the line's ONLY one and can't contain `*`/newlines,
+    // or the first-bold-run parse (tshirt.ts, Postie) captures garbage. The
+    // raw prompt still rides in alt_text below. A null echo (prompt was all
+    // asterisks/whitespace) omits the field — parsers fall back to alt_text.
+    const bold = boldEcho(prompt);
     let contextText = `_Prompt: ${prompt}_`;
     if (author && modelName && duration && cost) {
-        contextText = `<@${author}> | *${prompt}* | ${modelName} | ${duration}s | ${cost}${fromWolf ? ' | ❤️ wolf' : ''}`;
+        contextText = `<@${author}>${bold ? ` | *${bold}*` : ''} | ${modelName} | ${duration}s | ${cost}${fromWolf ? ' | ❤️ wolf' : ''}`;
     }
 
     const blocks: any[] = [];
@@ -56,7 +88,10 @@ function buildPublicBlocks({
  * Build the public message blocks for a text-only response (posted directly).
  */
 function buildTextPublicBlocks({ prompt, userId, thoughts, modelName, cost }) {
-    const contextParts = [`<@${userId}>`, `*${prompt}*`, modelName];
+    const bold = boldEcho(prompt);
+    const contextParts = [`<@${userId}>`];
+    if (bold) contextParts.push(`*${bold}*`);
+    contextParts.push(modelName);
     if (cost) contextParts.push(cost);
 
     return [
@@ -75,4 +110,4 @@ function buildTextPublicBlocks({ prompt, userId, thoughts, modelName, cost }) {
     ];
 }
 
-export { buildPublicBlocks, buildTextPublicBlocks, stripMrkdwn };
+export { boldEcho, buildPublicBlocks, buildTextPublicBlocks, stripMrkdwn };

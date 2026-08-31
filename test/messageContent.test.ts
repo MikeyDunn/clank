@@ -4,7 +4,12 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { describeConversation, describeMessage, extractImage } from '../src/lib/platform/slack/flows/messageContent.js';
+import {
+    describeConversation,
+    describeMessage,
+    extractImage,
+    humanText,
+} from '../src/lib/platform/slack/flows/messageContent.js';
 
 // ── extractImage ─────────────────────────────────────────────────
 
@@ -101,6 +106,29 @@ test('describeMessage: truly empty message yields empty string', () => {
 test('describeMessage: caps runaway walls of text at 2000 chars', () => {
     const out = describeMessage({ text: 'x'.repeat(5000) });
     assert.equal(out.length, 2000);
+});
+
+// ── humanText ────────────────────────────────────────────────────
+// The verbatim reader behind the summon credit-line echo: the human's words
+// only — never describeMessage's derived annotations or image placeholder.
+
+test('humanText: returns the top-level text', () => {
+    assert.equal(humanText({ text: '  draw me as a lobster  ' }), 'draw me as a lobster');
+});
+
+test('humanText: reconstructs from blocks when top-level text is empty', () => {
+    const out = humanText({
+        text: '',
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: 'block words' } }],
+    });
+    assert.equal(out, 'block words');
+});
+
+test('humanText: no placeholder and no annotations for image/file/link-only messages', () => {
+    // describeMessage would say '[An image, with no caption.]' / '[Attached file…]' here
+    assert.equal(humanText({ text: '', files: [{ mimetype: 'image/png', name: 'x.png' }] }), '');
+    assert.equal(humanText({ text: '', files: [{ mimetype: 'application/pdf', name: 'spec.pdf' }] }), '');
+    assert.equal(humanText({ text: '', attachments: [{ title: 'Article', title_link: 'https://ex.com' }] }), '');
 });
 
 // ── describeConversation ─────────────────────────────────────────

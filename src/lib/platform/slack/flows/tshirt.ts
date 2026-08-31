@@ -43,8 +43,11 @@ async function processTshirtReaction(event) {
         const contextBlock = message.blocks?.find((b) => b.type === 'context');
         const contextText = contextBlock?.elements?.[0]?.text || '';
         const promptMatch = contextText.match(/\*([^*]+)\*/);
-        // Summon-path posts carry no *prompt* in the context line — Clank's
-        // thoughts live in the image alt_text, a better naming seed than a stub.
+        // The line's one *bold* run is the human's words: the typed prompt on
+        // /clank posts, the echoed reacted-message text on summon posts (since
+        // 2026-08-31). Older summon posts (and image-only summons) have no bold
+        // run — fall back to the alt_text (Clank's thoughts), a better naming
+        // seed than a stub.
         const altText = (imageBlock.alt_text || '').trim();
         const prompt = promptMatch ? promptMatch[1].replace(/^["']|["']$/g, '') : altText.slice(0, 300) || 'Clank art';
 

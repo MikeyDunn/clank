@@ -99,6 +99,20 @@ function flattenBlocks(blocks: any[]): string {
 }
 
 /**
+ * Just the message's human-visible words: the top-level text, or text
+ * reconstructed from blocks when there's no top-level text. NO derived
+ * annotations ([Shared link…], [Attached file…]) and NO image placeholder —
+ * for consumers that echo "what the human wrote" verbatim (the summon credit
+ * line), as opposed to describeMessage's enriched think-step input.
+ */
+export function humanText(message: any): string {
+    const text = (message?.text || '').trim();
+    if (text) return text;
+    if (message?.blocks?.length) return flattenBlocks(message.blocks);
+    return '';
+}
+
+/**
  * Flatten a Slack message into a single prompt string Clank can respond to.
  * Priority: the human-visible text, plus the *content* of any unfurled links
  * (title/description, not just the bare URL) and notes about attached files —
@@ -110,15 +124,11 @@ function flattenBlocks(blocks: any[]): string {
 export function describeMessage(message: any, hasImage = false): string {
     const parts: string[] = [];
 
-    // 1. The message's own text — already carries <url|label> links, <@U…>
-    //    mentions and :emoji: which downstream steps understand.
-    const text = (message?.text || '').trim();
+    // 1. The message's own text (or its block reconstruction) — already carries
+    //    <url|label> links, <@U…> mentions and :emoji: which downstream steps
+    //    understand.
+    const text = humanText(message);
     if (text) parts.push(text);
-    // 1b. …or reconstruct from blocks when there's no top-level text.
-    else if (message?.blocks?.length) {
-        const blockText = flattenBlocks(message.blocks);
-        if (blockText) parts.push(blockText);
-    }
 
     // 2. Unfurled links / legacy attachments → fold in their CONTENT so Clank
     //    reacts to what was shared, not just that something was shared.

@@ -17,6 +17,7 @@ import { downloadReferenceImage, runArtPipeline } from '../../../imageProcessor/
 import { updateItem } from '../../../memory/db.js';
 import * as memory from '../../../memory/index.js';
 import {
+    boldEcho,
     ensureBotInChannel,
     fetchMessageContext,
     getBotIdentity,
@@ -27,22 +28,28 @@ import {
     postMessage,
     stripMrkdwn,
 } from '../index.js';
-import { describeConversation, describeMessage, extractImage } from './messageContent.js';
+import { describeConversation, describeMessage, extractImage, humanText } from './messageContent.js';
 
 /** The one-line credit under Clank's response: who summoned him onto whose
  *  message, plus a permalink back to the source (since we post at channel root,
  *  not in-thread). `<@UID>` mentions render as names; the permalink stays a bare
- *  link so it doesn't nest inside another `<…>`. */
+ *  link so it doesn't nest inside another `<…>`. `echo` (the reacted message's
+ *  words, pre-sanitized via boldEcho) renders as the line's one *bold* run — the
+ *  cross-app convention for "the human's words" (t-shirt naming, Postie). The
+ *  summoner mention must stay FIRST: downstream consumers attribute the post to
+ *  the first chrome mention, and the echo may carry `<@UID>`s of its own. */
 function summonCredit(
     summonerId: string | null,
     authorId: string | null,
     self: boolean,
-    permalink: string | null
+    permalink: string | null,
+    echo: string | null = null
 ): string {
     let head: string;
     if (self) head = `🤖 <@${summonerId}> summoned Clank on their own message`;
     else if (authorId) head = `🤖 <@${summonerId}> summoned Clank on <@${authorId}>'s message`;
     else head = `🤖 <@${summonerId}> summoned Clank`;
+    if (echo) head += `: *${echo}*`;
     return permalink ? `${head} · <${permalink}|source>` : head;
 }
 
@@ -178,6 +185,12 @@ async function processReactPrompt(event, deadlineMs: number | null = null) {
             getChannelContext(channelId),
         ]);
         const credit = summonCredit(reactingUser, authorUserId, self, permalink);
+        // The image branch's credit line additionally echoes the reacted
+        // message's HUMAN text (not describeMessage's derived annotations or
+        // placeholder — humanText returns '' for image-only messages, so those
+        // keep the plain line). Text-branch posts carry real content in their
+        // section block, which downstream consumers already prefer.
+        const imageCredit = summonCredit(reactingUser, authorUserId, self, permalink, boldEcho(humanText(message)));
 
         // Root post shared by the text / refusal branches: a body
         // section + the summon-credit context line. (The image branch posts its
@@ -246,7 +259,9 @@ async function processReactPrompt(event, deadlineMs: number | null = null) {
                         { type: 'image', image_url: publicUrl, alt_text: (thoughts || resolvedPrompt).slice(0, 2000) },
                         {
                             type: 'context',
-                            elements: [{ type: 'mrkdwn', text: `${credit} | ${modelName} | ${duration}s | ${cost}` }],
+                            elements: [
+                                { type: 'mrkdwn', text: `${imageCredit} | ${modelName} | ${duration}s | ${cost}` },
+                            ],
                         },
                     ],
                 });
