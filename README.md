@@ -7,10 +7,12 @@ journal, and a relevance-searchable memory of everything a community has ever
 built, all of which shape what he chooses to draw. Every community gets its own
 isolated, persistent mind that grows the more it's used.
 
+**Live now:** [clank.fyi](https://clank.fyi) — add Clank to your Discord server.
+
 Built as a study in doing LLM application engineering *well*: structured model
 I/O, relevance-based retrieval, prompt caching, atomic financial correctness for
-paid credits, and a fully typed TypeScript codebase running on AWS Lambda —
-across three platforms behind one shared core.
+paid credits, and strict-mode TypeScript on AWS Lambda — across three platforms
+behind one shared core.
 
 ```
 /clank draw a raccoon presenting quarterly earnings

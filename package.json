@@ -1,14 +1,13 @@
 {
-  "name": "clank-image-generator",
+  "name": "clank",
   "version": "1.0.0",
-  "description": "Slack command to generate images using OpenRouter API",
-  "main": "src/handlers/slashCommand.ts",
+  "description": "Multi-platform, multi-tenant image-generation bot with an evolving per-community mind — Slack + Discord on AWS Lambda (SST), DynamoDB + S3 Vectors memory, OpenRouter models",
   "type": "module",
+  "private": true,
   "scripts": {
     "dev": "sst dev",
     "deploy": "sst deploy",
     "deploy:dev": "sst deploy --stage dev",
-    "deploy:prod": "sst deploy --stage production",
     "deploy:site": "sst deploy --stage site",
     "remove": "sst remove",
     "lint": "biome check .",
@@ -20,12 +19,23 @@
   },
   "keywords": [
     "slack",
-    "openrouter",
+    "discord",
     "image-generation",
-    "serverless"
+    "llm",
+    "openrouter",
+    "serverless",
+    "sst"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "Mike Dunn",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MikeyDunn/clank.git"
+  },
+  "homepage": "https://clank.fyi",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1106.0",
     "@aws-sdk/client-lambda": "^3.1106.0",
