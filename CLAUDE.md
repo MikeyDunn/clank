@@ -21,7 +21,7 @@ The goal is an organic, evolving AI personality — not a feature checklist. Whe
 - **S3 Bucket**: `clank-image-generator-images-dev` (generated images, shared by all tenants) — created/managed by SST
 - **Domain**: `api.<your-domain>` (custom domain via SST)
 - **Website**: `<your-site>` (landing + `/terms.html` + `/privacy.html`), a static SST `site` stage (S3+CloudFront+ACM, Route 53 DNS; `npm run deploy:site`). `contact@<your-site>` forwards to Gmail via SES (`ops/email-forwarder/`). App is verified; monetization + the 3 credit SKUs are live.
-- **Environment** (`.env`): `OPENROUTER_API_KEY` (Slack account), `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `PRINTIFY_API_KEY`, `DISCORD_APP_ID`/`DISCORD_PUBLIC_KEY`/`DISCORD_BOT_TOKEN`, `DISCORD_OPENROUTER_API_KEY` (Discord's SEPARATE OpenRouter account — its own billing/Auto-Recharge; the DiscordProcessor points its `OPENROUTER_API_KEY` at this, falling back to the Slack key until set), `AWS_PROFILE`. Discord Lambdas also get `PROD_DYNAMODB_TABLE_NAME`/`PROD_VECTOR_BUCKET`/`PROD_VECTOR_INDEX` + `DISCORD_UNMETERED_GUILDS` (comma-separated metering-exempt guild ids — bot-list review servers like the Top.gg Verification Center: renders free via `ExemptPolicy`, wallet/entitlements/`/credits` stay live). iMessage adds `IMESSAGE_TOKEN_SECRET` (HS256 session+draft JWTs), `IMESSAGE_DEV_AUTH` (opt-in flag for simulator dev auth, default off) + `IMESSAGE_DEV_KEY` (the dev-auth shared key; the branch is dead unless the flag is '1'), `IMESSAGE_BUNDLE_IDS` (SIWA aud allowlist).
+- **Environment** (`.env`): `OPENROUTER_API_KEY` (Slack account), `SLACK_SIGNING_SECRET`, `SLACK_BOT_TOKEN`, `PRINTIFY_API_KEY`, `DISCORD_APP_ID`/`DISCORD_PUBLIC_KEY`/`DISCORD_BOT_TOKEN`, `DISCORD_OPENROUTER_API_KEY` (Discord's SEPARATE OpenRouter account — its own billing/Auto-Recharge; the DiscordProcessor points its `OPENROUTER_API_KEY` at this, falling back to the Slack key until set), `AWS_PROFILE`. Discord Lambdas also get `PROD_DYNAMODB_TABLE_NAME`/`PROD_VECTOR_BUCKET`/`PROD_VECTOR_INDEX` + `DISCORD_UNMETERED_GUILDS` (comma-separated metering-exempt guild ids — bot-list review servers like the Top.gg Verification Center: renders free via `ExemptPolicy`, wallet/entitlements/`/credits` stay live). iMessage adds `IMESSAGE_TOKEN_SECRET` (HS256 session+draft JWTs), `IMESSAGE_DEV_AUTH` (opt-in flag for simulator dev auth, default off) + `IMESSAGE_DEV_KEY` (the dev-auth shared key; the branch is dead unless the flag is '1'), `IMESSAGE_BUNDLE_IDS` (SIWA aud allowlist). `ALERT_EMAIL` — SNS/CloudWatch alarm destination; env-only (no hardcoded fallback), unset → the alarm stack is skipped at deploy.
 - **SDK packages**: `@aws-sdk/client-{dynamodb,s3vectors,s3,lambda}`, `@aws-sdk/lib-dynamodb`, `electrodb` (prod entities), `@slack/web-api`, `discord-interactions` + `@discordjs/rest` (Discord adapter)
 
 ### Lambda Functions
@@ -243,6 +243,10 @@ AGENTS.md CLAUDE.md     Agent instructions (vendor-neutral / Claude-specific)
 `npm run check` (lint + typecheck + test) must be green. Pieces: `npm run lint`
 (Biome), `npm run typecheck` (`tsc --noEmit` — SST/esbuild does the real build),
 `npm test` (`node:test` via tsx). Auto-fix: `npm run lint:fix`. See [AGENTS.md](./AGENTS.md).
+Lint-warning baseline: ONLY the intentional `noExcessiveCognitiveComplexity` flags
+(~20, the complexity dashboard). Anything else gets fixed or suppressed via a
+`biome.json` override (entities.ts's ElectroDB `${}` key templates are) — don't let
+new warning classes accumulate.
 
 ## Deployment & Local Testing
 Git remote: `origin` → `github.com/MikeyDunn/clank.git`. Deploy with `npm run deploy:dev` (runs `sst deploy --stage dev`). Local live dev: `npm run dev` (`sst dev`).
@@ -307,6 +311,7 @@ Discord Lambda log group **hash rotates on every deploy** — re-find with `aws 
 - **Text replies are a strong last resort.** The think prompt heavily biases IMAGE; text is reserved for a direct question about Clank that genuinely cannot be drawn (2026-08), both platforms
 - **🤖 reaction = summon Clank onto a message** — fires on the FIRST 🤖 (instant, no threshold), responds EXACTLY ONCE per message forever (permanent conditional-write lock — survives second reactors + remove/re-add), posts to the ROOT channel (never threaded; permalink back to source), skips Clank's own messages. Think gets the social triangle (who summoned / whose message / self-vs-other) as ephemeral context — never persisted, so troll-safe; the message's first-person is the AUTHOR, not the summoner
 - **Bot token for delivery** — `chat.postMessage` direct to channel (errors via `chat.postEphemeral`); **auto-join public channels**; **view_submission callback_id** at `payload.view.callback_id`
+- **No open-source license (deliberate, 2026-08)** — the repo is source-visible but all-rights-reserved while the product is live; `package.json` says `UNLICENSED` + `private: true`. Do NOT add a LICENSE file without the operator's say-so. Related: no operator identity in committed code — emails/domains are env-only (`ALERT_EMAIL`, the forwarder's `FORWARD_TO`/`FORWARD_FROM`), except the deliberate marketing domain in `site/` + `sst.config.ts`'s site stage
 
 ## Ops Runbook
 Deployment-specific support runbooks (manual credit grants, the email forwarder, webhook registration) live in the gitignored `CLAUDE.local.md` for the operator of a given instance.
@@ -314,7 +319,7 @@ Deployment-specific support runbooks (manual credit grants, the email forwarder,
 ## Gotchas & Lessons Learned
 - **Appearance swaps**: Sonnet may copy a physical description from a recalled/history prompt instead of the PEOPLE YOU KNOW roster. The think prompt forces lookup ("STOP AND VERIFY", "USE ALL BULLETS"). If someone looks wrong, check the imagePrompt — profile data may be right but ignored.
 - **This group trolls each other**: any automated profile update gets abused ("<person> is morbidly obese"). Manual-only for appearance/aliases; lore (events) is auto but never changes a real face.
-- **Self-description can be trolling too**: users troll in the first person (Ted's "bald/dark mustache" was a bit). the operator (with real-world knowledge of the people) is the trust filter for profiles, not self-vs-third-party.
+- **Self-description can be trolling too**: users troll in the first person (one user's "bald/dark mustache" self-description was a bit). the operator (with real-world knowledge of the people) is the trust filter for profiles, not self-vs-third-party.
 - **Emergent characters** (Pissatron, Carl) have no curated description — appearance comes through the user prompts that established them (recalled via tools) and can drift; distinctive characters stay consistent, generic ones less so. Accepted tradeoff for zero-maintenance.
 - **S3 Vectors is similarity-only** — no time-sort. "Oldest/newest" or superlative/temporal queries are a blind spot; DynamoDB's GSI handles recency.
 - **Bedrock embeddings blocked**: account-level 0-RPM quota (non-adjustable) made Titan unusable; using OpenRouter embeddings instead. Anthropic has no embeddings API.
