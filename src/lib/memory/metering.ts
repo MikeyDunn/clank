@@ -68,6 +68,32 @@ export class UnmeteredPolicy implements MeteringPolicy {
     }
 }
 
+/** A guild exempted from metering — review/verification servers (e.g. the
+ *  Top.gg Verification Center, which declines bots whose commands sit behind a
+ *  paywall). Renders are free — reserve always ok, charge a no-op — but the
+ *  WALLET stays live: purchases still grant (a reviewer's test buy must never
+ *  be consumed-without-credit by reconcileCredits), refunds still claw back,
+ *  and /credits shows the user's real global balance. Contrast UnmeteredPolicy,
+ *  which nulls the wallet ops too (Slack has no wallet at all). */
+export class ExemptPolicy implements MeteringPolicy {
+    constructor(private wallet: MeteringPolicy) {}
+    async reserve(): Promise<ReserveResult> {
+        return { ok: true };
+    }
+    async charge(): Promise<void> {
+        /* free render — nothing consumed */
+    }
+    grantEntitlement(userId: string, entitlementId: string, amount: number): Promise<boolean> {
+        return this.wallet.grantEntitlement(userId, entitlementId, amount);
+    }
+    clawbackEntitlement(userId: string, entitlementId: string, amount: number): Promise<number> {
+        return this.wallet.clawbackEntitlement(userId, entitlementId, amount);
+    }
+    status(userId: string): Promise<MeterStatus> {
+        return this.wallet.status(userId);
+    }
+}
+
 export interface MeterConfig {
     /** Free renders per USER per UTC day. Tuned for conversion: low enough that
      *  an engaged person meets a wall regularly, high enough to allow a retry

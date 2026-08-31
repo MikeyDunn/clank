@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MeteredPolicy, type MeteringPolicy, UnmeteredPolicy } from '../src/lib/memory/metering.js';
+import { ExemptPolicy, MeteredPolicy, type MeteringPolicy, UnmeteredPolicy } from '../src/lib/memory/metering.js';
 import type { MeterStore } from '../src/lib/memory/store.js';
 
 function mockStore(initial: Record<string, any> = {}) {
@@ -99,6 +99,46 @@ test('UnmeteredPolicy (Slack): grants/clawbacks are inert, status is unmetered',
     assert.equal(await p.grantEntitlement('U1', 'E1', 50), false);
     assert.equal(await p.clawbackEntitlement('U1', 'E1', 50), 0);
     assert.equal((await p.status('U1')).metered, false);
+});
+
+// ── Exempt guild (bot-list review servers) ───────────────────────────
+// Renders are free, but the wallet must stay LIVE — a reviewer's test purchase
+// consumed-without-credit, or a /credits readout of 0 next to a real balance,
+// is exactly the kind of thing a review fails on.
+
+test('ExemptPolicy: reserve always ok with no cooldown, charge spends nothing', async () => {
+    const { store, peek } = mockStore({ creditBalance: 5 });
+    const p: MeteringPolicy = new ExemptPolicy(
+        new MeteredPolicy(store, { freePerDay: 0, serverFreePerDay: 0, trialCredits: 0, cooldownSec: 60 })
+    );
+    assert.equal((await p.reserve('U1', 'G1')).ok, true);
+    assert.equal((await p.reserve('U1', 'G1')).ok, true); // back-to-back → no cooldown
+    await p.charge('U1', 'G1');
+    assert.equal(peek().creditBalance, 5); // untouched
+    assert.equal(peek().lastRequestAt, null); // no cooldown stamp either
+});
+
+test('ExemptPolicy: reserve ok even with a zero balance', async () => {
+    const { store } = mockStore();
+    const p: MeteringPolicy = new ExemptPolicy(
+        new MeteredPolicy(store, { freePerDay: 0, serverFreePerDay: 0, trialCredits: 0, cooldownSec: 15 })
+    );
+    assert.equal((await p.reserve('U1', 'G1')).ok, true);
+});
+
+test('ExemptPolicy: entitlements and status pass through to the real wallet', async () => {
+    const { store, peek } = mockStore();
+    const p: MeteringPolicy = new ExemptPolicy(
+        new MeteredPolicy(store, { freePerDay: 0, serverFreePerDay: 0, trialCredits: 0, cooldownSec: 15 })
+    );
+    assert.equal(await p.grantEntitlement('U1', 'ENT-1', 12), true);
+    assert.equal(await p.grantEntitlement('U1', 'ENT-1', 12), false); // still idempotent
+    assert.equal(peek().creditBalance, 12);
+    const st = await p.status('U1');
+    assert.equal(st.metered, true);
+    assert.equal(st.credits, 12); // /credits shows the REAL balance
+    assert.equal(await p.clawbackEntitlement('U1', 'ENT-1', 12), 12);
+    assert.equal(peek().creditBalance, 0);
 });
 
 test('MeteredPolicy: fresh user is allowed', async () => {

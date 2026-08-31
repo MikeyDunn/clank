@@ -12,6 +12,7 @@ import { bindTable } from './entities.js';
 import { maybeReflect as maybeReflectFor } from './introspection.js';
 import { createLegacyStore } from './legacyStore.js';
 import {
+    ExemptPolicy,
     MeteredPolicy,
     type MeteringPolicy,
     type MeterStatus,
@@ -31,6 +32,17 @@ const DISCORD_TRIAL_CREDITS = Number(process.env.DISCORD_TRIAL_CREDITS || 1);
 const DISCORD_FREE_PER_DAY = Number(process.env.DISCORD_FREE_PER_DAY || 0);
 const DISCORD_SERVER_FREE_PER_DAY = Number(process.env.DISCORD_SERVER_FREE_PER_DAY || 0);
 const DISCORD_COOLDOWN_SEC = Number(process.env.DISCORD_COOLDOWN_SEC || 15);
+
+// Guilds exempt from metering (comma-separated guild ids). Exists for bot-list
+// review servers: Top.gg declines bots whose commands sit behind a paywall, and
+// reviewer ACCOUNTS rotate between reviews, so the exemption must be per-GUILD.
+// Renders are free there; the wallet stays live (see ExemptPolicy).
+const DISCORD_UNMETERED_GUILDS = new Set(
+    (process.env.DISCORD_UNMETERED_GUILDS || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+);
 
 /** The stateful memory surface, bound to one mind (tenant). */
 export interface Mind {
@@ -108,12 +120,16 @@ function forTenant(opts: { tenant: string; tableName?: string; vectorBucket?: st
     // The wallet is GLOBAL per-user (one balance across every server), not
     // tenant-scoped like the memory — purchases are user-owned. See meterStore.ts.
     const meterStore = createGlobalMeterStore(tableName);
-    const policy = new MeteredPolicy(meterStore, {
+    const metered = new MeteredPolicy(meterStore, {
         freePerDay: DISCORD_FREE_PER_DAY,
         serverFreePerDay: DISCORD_SERVER_FREE_PER_DAY,
         trialCredits: DISCORD_TRIAL_CREDITS,
         cooldownSec: DISCORD_COOLDOWN_SEC,
     });
+    // Tenant ids look like `discord:<guildId>` (tenant.ts) — exempt guilds
+    // render free while their users' wallets keep working normally.
+    const guildId = opts.tenant.startsWith('discord:') ? opts.tenant.slice('discord:'.length) : null;
+    const policy = guildId && DISCORD_UNMETERED_GUILDS.has(guildId) ? new ExemptPolicy(metered) : metered;
     return createMind(store, vectorScope, policy, false); // no funding anxiety on paid tenants
 }
 

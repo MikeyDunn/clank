@@ -192,6 +192,8 @@ export default $config({
                 PROD_VECTOR_INDEX,
                 DISCORD_APP_ID: process.env.DISCORD_APP_ID || '',
                 DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN || '',
+                // Metering-exempt guilds (bot-list review servers) — see memory/index.ts.
+                DISCORD_UNMETERED_GUILDS: process.env.DISCORD_UNMETERED_GUILDS || '',
             },
             permissions: discordPermissions,
         });
