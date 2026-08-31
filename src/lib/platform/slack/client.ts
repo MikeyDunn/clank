@@ -149,7 +149,12 @@ async function fetchMessageContext(
     const dedupSort = (msgs: any[]) => {
         const seen = new Set<string>();
         const out: any[] = [];
-        for (const m of msgs) if (m?.ts && !seen.has(m.ts)) seen.add(m.ts), out.push(m);
+        for (const m of msgs) {
+            if (m?.ts && !seen.has(m.ts)) {
+                seen.add(m.ts);
+                out.push(m);
+            }
+        }
         return out.sort((a, b) => Number(a.ts) - Number(b.ts));
     };
     try {

@@ -47,5 +47,15 @@
                 }
             }
         }
-    }
+    },
+    "overrides": [
+        {
+            "includes": ["src/lib/memory/entities.ts"],
+            "linter": {
+                "rules": {
+                    "suspicious": { "noTemplateCurlyInString": "off" }
+                }
+            }
+        }
+    ]
 }

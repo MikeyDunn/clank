@@ -17,7 +17,7 @@ test('token: round-trips a payload', () => {
 
 test('token: rejects tampered payload and wrong secret', () => {
     const t = signToken({ userId: 'apple:abc' }, SECRET, 60);
-    const [h, b, m] = t.split('.');
+    const [h, , m] = t.split('.');
     const forged = Buffer.from(JSON.stringify({ userId: 'apple:EVIL', exp: 9999999999 })).toString('base64url');
     assert.equal(verifyToken(`${h}.${forged}.${m}`, SECRET), null);
     assert.equal(verifyToken(t, 'other-secret'), null);

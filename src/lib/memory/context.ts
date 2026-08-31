@@ -179,7 +179,7 @@ function formatTimeAgo(now, then) {
  * vector history under a stable, distinctive @handle — cleaning future recall too.
  */
 function resolveMentions(text: string, profiles: any[]): string {
-    if (!text || !text.includes('<@')) return text;
+    if (!text?.includes('<@')) return text;
     const byUid = new Map<string, any>();
     for (const p of profiles || []) byUid.set((p.pk || '').replace('USER#', ''), p);
     return text.replace(/<@([A-Z0-9]+)(?:\|([^>]+))?>/g, (raw, uid, inline) => {

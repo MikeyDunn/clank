@@ -281,7 +281,6 @@ test('server pool: a free render draws on BOTH the user and the server', async (
 });
 
 test('server pool: exhausted server blocks free users even with allowance left', async () => {
-    const today = new Date().toISOString().slice(0, 10);
     const { store } = mockStore();
     const p = new MeteredPolicy(store, { freePerDay: 2, serverFreePerDay: 1, trialCredits: 0, cooldownSec: 0 });
     await p.charge('U1', 'G1'); // burns the server's only free render
