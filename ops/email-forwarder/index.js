@@ -14,7 +14,8 @@ const REGION = 'us-east-1';
 const BUCKET = 'clank-email-dev';
 const PREFIX = 'incoming/';
 const FROM = process.env.FORWARD_FROM || 'Clank <contact@example.com>'; // must be a verified SES identity
-const TO = 'you@example.com';
+const TO = process.env.FORWARD_TO; // destination inbox — set on the Lambda, no default
+if (!TO) throw new Error('FORWARD_TO env var is required');
 
 const s3 = new S3Client({ region: REGION });
 const ses = new SESClient({ region: REGION });

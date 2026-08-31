@@ -241,35 +241,45 @@ export default $config({
         // gets DISABLED by Discord if it keeps 5xx-ing. Nothing was watching any
         // of that. Email is deliberate over anything fancier — it reaches a phone
         // at 2am with no extra service to maintain.
-        const ALERT_EMAIL = process.env.ALERT_EMAIL || 'you@example.com';
-        const alerts = new aws.sns.Topic('Alerts', { name: `clank-${stage}-alerts` });
-        new aws.sns.TopicSubscription('AlertsEmail', {
-            topic: alerts.arn,
-            protocol: 'email',
-            endpoint: ALERT_EMAIL,
-        });
-
-        // Any error at all is worth knowing about at this volume — these are
-        // low-traffic functions, so threshold 1 over 5 minutes is signal, not noise.
-        const lambdaErrorAlarm = (name: string, fn: sst.aws.Function, description: string) =>
-            new aws.cloudwatch.MetricAlarm(`${name}Errors`, {
-                name: `clank-${stage}-${name}-errors`,
-                alarmDescription: description,
-                namespace: 'AWS/Lambda',
-                metricName: 'Errors',
-                dimensions: { FunctionName: fn.name },
-                statistic: 'Sum',
-                period: 300,
-                evaluationPeriods: 1,
-                threshold: 1,
-                comparisonOperator: 'GreaterThanOrEqualToThreshold',
-                treatMissingData: 'notBreaching', // no traffic != broken
-                alarmActions: [alerts.arn],
-                okActions: [alerts.arn], // tell us when it recovers too
+        // From env only — the repo carries no operator identity. Unset → the
+        // alarm stack is skipped, so deploy-your-own works without it.
+        const ALERT_EMAIL = process.env.ALERT_EMAIL;
+        if (ALERT_EMAIL) {
+            const alerts = new aws.sns.Topic('Alerts', { name: `clank-${stage}-alerts` });
+            new aws.sns.TopicSubscription('AlertsEmail', {
+                topic: alerts.arn,
+                protocol: 'email',
+                endpoint: ALERT_EMAIL,
             });
 
-        lambdaErrorAlarm('discord-processor', discordProcessor, 'Discord renders are failing (paid users affected).');
-        lambdaErrorAlarm('slack-processor', processor, 'Slack renders are failing.');
+            // Any error at all is worth knowing about at this volume — these are
+            // low-traffic functions, so threshold 1 over 5 minutes is signal, not noise.
+            const lambdaErrorAlarm = (name: string, fn: sst.aws.Function, description: string) =>
+                new aws.cloudwatch.MetricAlarm(`${name}Errors`, {
+                    name: `clank-${stage}-${name}-errors`,
+                    alarmDescription: description,
+                    namespace: 'AWS/Lambda',
+                    metricName: 'Errors',
+                    dimensions: { FunctionName: fn.name },
+                    statistic: 'Sum',
+                    period: 300,
+                    evaluationPeriods: 1,
+                    threshold: 1,
+                    comparisonOperator: 'GreaterThanOrEqualToThreshold',
+                    treatMissingData: 'notBreaching', // no traffic != broken
+                    alarmActions: [alerts.arn],
+                    okActions: [alerts.arn], // tell us when it recovers too
+                });
+
+            lambdaErrorAlarm(
+                'discord-processor',
+                discordProcessor,
+                'Discord renders are failing (paid users affected).'
+            );
+            lambdaErrorAlarm('slack-processor', processor, 'Slack renders are failing.');
+        } else {
+            console.warn('ALERT_EMAIL not set — skipping SNS alerting + CloudWatch error alarms.');
+        }
 
         // Async invokes retry twice by DEFAULT. Neither processor is idempotent,
         // so a timeout (or any thrown error) would re-run the whole flow:
