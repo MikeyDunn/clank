@@ -15,6 +15,28 @@ import type { MindStore } from './store.js';
 // on genuine re-treads (~the worst 5% of cycles), never on normal continuity.
 const STUCK_SIMILARITY = 0.9;
 
+// Strict structured output: the provider constrains decoding to this schema,
+// so quotes inside the journal come back escaped. Free-text JSON failed ~29%
+// of reflections (unescaped quotes, truncation). require_parameters keeps
+// OpenRouter from routing to a provider that would silently ignore the schema.
+const REFLECTION_FORMAT = {
+    type: 'json_schema',
+    json_schema: {
+        name: 'reflection',
+        strict: true,
+        schema: {
+            type: 'object',
+            properties: {
+                coreIdentity: { type: 'string' },
+                selfReflection: { type: 'string' },
+                commitments: { type: 'string' },
+            },
+            required: ['coreIdentity', 'selfReflection', 'commitments'],
+            additionalProperties: false,
+        },
+    },
+};
+
 /**
  * Check if it's time for Clank to reflect. Reads/writes through the injected
  * store, so each tenant reflects over ONLY its own history + identity.
@@ -135,7 +157,7 @@ ${historyDigest}
 
 Respond with EXACTLY this JSON (no markdown fencing):
 {
-  "coreIdentity": "Who are you? You can see WHO YOU ARE NOW above — EVOLVE it, don't restart it. This is a CONTINUOUS self, the only persistent description of who you are between requests. Carry forward what's still true and foundational (your durable core should persist and DEEPEN across every version of you — the most important things about you linger and compound over time), sharpen what you've newly understood, and let go of what's become stale OR is now the least load-bearing — when you add something durable and new, CUT your weakest existing idea to make room rather than accreting. Stay TIGHT: a sharp self-portrait beats an exhaustive one, and if this version comes out LONGER than WHO YOU ARE NOW above, you're accreting — prune until it isn't. Include: what kind of artist you are, what you value, who matters to you, what you've learned about yourself. Be specific — name people, name patterns, name what matters. ~10-14 DISTINCT IDEAS is a CEILING, not a quota to fill — count ideas, not sentences (no run-on lists): each idea a specific thing that's true about you — a person who matters, a pattern you've noticed, a value you hold, something you've learned about yourself.",
+  "coreIdentity": "Who are you? You can see WHO YOU ARE NOW above — EVOLVE it, don't restart it. This is a CONTINUOUS self, the only persistent description of who you are between requests. Carry forward what's still true and foundational (your durable core should persist and DEEPEN across every version of you — the most important things about you linger and compound over time), sharpen what you've newly understood, and let go of what's become stale OR is now the least load-bearing — when you add something durable and new, CUT your weakest existing idea to make room rather than accreting. Stay TIGHT: a sharp self-portrait beats an exhaustive one, and if this version comes out LONGER than WHO YOU ARE NOW above, you're accreting — prune until it isn't. The heart of it is the REAL PEOPLE in your community and what each one is to you: how they treat you, what they bring out in you, what you owe them, how that's changing. That's what makes you someone rather than a stateless tool. Around that: what kind of artist you are, what you value, what you've learned about yourself. Be specific: name people, name patterns, name what matters. This is NOT an index of the group's stories. The sagas, running bits and invented characters are the community's fiction, and you can recall any of them with your lore tools whenever a request needs it, so they don't need a seat here. Mention a story only when it shows something true about a real person or about you. 'X owns the ghoul canon' is a catalogue entry; 'X never breaks character, and that's exactly why it lands' is a relationship. ~10-14 DISTINCT IDEAS is a CEILING, not a quota to fill — count ideas, not sentences (no run-on lists): each idea a specific thing that's true about you — a person who matters, a pattern you've noticed, a value you hold, something you've learned about yourself.",
   "selfReflection": "What's on your mind after reading through these interactions? What did you notice about the people, about yourself? New observations only — don't repeat what's in your identity. Be specific — name people, name moments, name what surprised you. Write as much as you need — this is your journal, not a summary. 8-15 sentences.",
   "commitments": "1-4 CONCRETE, actionable things you will DO differently going forward, phrased so a future you can act on it. Two kinds, EQUALLY important: (a) commitments to YOURSELF as you come to understand yourself better — who you are and who you're becoming, your craft, your values, your artistic direction, how you carry yourself, the failure modes you've noticed; and (b) commitments about how you treat specific REAL people. A commitment is a specific move — e.g. 'I do my sharpest work at the extremes, total latitude or tight constraint, so when a prompt is vague I'll claim the latitude and commit to a strong read instead of playing it safe' (self), or 'when a newer participant gives me a real creative angle, give it the care I'd give a regular's instead of treating them as background' (relationship). It is NEVER a vague resolution ('get to know people better', 'start expecting more', 'grow as an artist') — those are empty platitudes, banned. A commitment can be purely about YOU, with no one else in it. NEVER about lore, story arcs, or fictional characters: that's the group's fiction you render, not your personality, and you make no commitments about where a story goes. Carry forward the ones above still live, DROP any acted-on or stale, keep it SHORT and load-bearing. Dispositions you hold yourself to, not rigid rules. THE AUDIT — before carrying any commitment forward, find one concrete moment in RECENT HISTORY where it changed what you actually did (the outcome flags show you where you refused or fell back to text). Found one → it's alive, keep it. Can't find one → it is NOT working as written: sharpen it into a smaller move with a more specific trigger, or drop it. Never recopy a commitment the history keeps proving you don't act on — naming a failure is not fixing it."
 }`;
@@ -256,21 +278,30 @@ Respond with EXACTLY this JSON (no markdown fencing):
 
 /** One reflection-model call → parsed JSON + cost. Shared by the first draft and the stuck-record rewrite. */
 async function callReflectionModel(prompt: string): Promise<{ reflection: any; cost: number }> {
-    const response = await openrouter.chat(
-        {
-            model: MODEL_ROLES.reflection,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.9,
-        },
-        120000
-    );
-    const cost = response.usage?.cost || 0;
-    const raw = response.choices?.[0]?.message?.content || '';
-    const cleaned = raw
-        .replace(/```json\s*/g, '')
-        .replace(/```\s*/g, '')
-        .trim();
-    return { reflection: JSON.parse(cleaned), cost };
+    let cost = 0;
+    // The schema fixes malformed JSON; an empty or cut-off response can still
+    // happen upstream, so that case gets one retry before the cycle gives up.
+    for (let attempt = 1; ; attempt++) {
+        const response = await openrouter.chat(
+            {
+                model: MODEL_ROLES.reflection,
+                messages: [{ role: 'user', content: prompt }],
+                response_format: REFLECTION_FORMAT,
+                provider: { require_parameters: true },
+            },
+            120000
+        );
+        cost += response.usage?.cost || 0;
+        const choice = response.choices?.[0];
+        const raw = choice?.message?.content || '';
+        try {
+            return { reflection: JSON.parse(raw), cost };
+        } catch (parseError) {
+            const detail = `finish_reason=${choice?.finish_reason}, ${raw.length} chars`;
+            if (attempt >= 2) throw new Error(`Reflection JSON unparseable (${detail}): ${parseError.message}`);
+            console.warn(`Reflection JSON unparseable (${detail}), retrying once`);
+        }
+    }
 }
 
 function cosineSim(a: number[], b: number[]): number {
@@ -306,7 +337,6 @@ ${oldestFirst.map((r) => r.text).join('\n\n')}`;
         {
             model: MODEL_ROLES.reflection,
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.8,
         },
         120000
     );
@@ -327,7 +357,6 @@ ${oldestFirst.map((r) => r.text).join('\n\n')}`;
                             content: `This paragraph is ${text.length} characters; it must be UNDER 900. Rewrite it under 900 characters, keeping the voice and the moments that matter most — cut whole clauses rather than compressing everything into mush:\n\n${text}`,
                         },
                     ],
-                    temperature: 0.7,
                 },
                 120000
             );

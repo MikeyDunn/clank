@@ -203,13 +203,19 @@ async function think(
         // submitResponse tool — constrained decoding guarantees its shape, so
         // there's no JSON-in-prose to extract or repair.
         for (let turn = 0; turn < MAX_TURNS; turn++) {
-            // Final turn: strip the lore tools and force a submitResponse so Clank
-            // MUST answer with the lore he's already gathered instead of recalling
-            // into exhaustion. tool_choice pins the one allowed tool.
-            const lastTurn = turn === MAX_TURNS - 1;
-            const body: any = { model, messages, tools: lastTurn ? [RESPONSE_TOOL] : TOOLS };
-            if (lastTurn) body.tool_choice = { type: 'function', function: { name: 'submitResponse' } };
-            const response = await openrouter.chat(body, 60000);
+            // Final turn: tell Clank to answer with the lore he's already gathered
+            // instead of recalling into exhaustion. Sonnet 5.5 rejects a forced
+            // tool_choice AND refuses (finish_reason content_filter) if the tool
+            // list changes mid-conversation, so the tools stay constant and the
+            // instruction rides in a user turn instead.
+            if (turn === MAX_TURNS - 1 && messages[messages.length - 1].role !== 'user') {
+                messages.push({
+                    role: 'user',
+                    content:
+                        'Your recall budget is spent. Deliver your answer now by calling submitResponse with what you already have.',
+                });
+            }
+            const response = await openrouter.chat({ model, messages, tools: TOOLS }, 60000);
             cost += response.usage?.cost || 0;
             const msg = response.choices?.[0]?.message;
             if (!msg) break;
