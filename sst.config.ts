@@ -244,8 +244,8 @@ export default $config({
         // From env only — the repo carries no operator identity. Unset → the
         // alarm stack is skipped, so deploy-your-own works without it.
         const ALERT_EMAIL = process.env.ALERT_EMAIL;
-        if (ALERT_EMAIL) {
-            const alerts = new aws.sns.Topic('Alerts', { name: `clank-${stage}-alerts` });
+        const alerts = ALERT_EMAIL ? new aws.sns.Topic('Alerts', { name: `clank-${stage}-alerts` }) : undefined;
+        if (alerts) {
             new aws.sns.TopicSubscription('AlertsEmail', {
                 topic: alerts.arn,
                 protocol: 'email',
@@ -360,21 +360,23 @@ export default $config({
         // most: Discord DISABLES an interactions/webhook endpoint that keeps
         // failing, and Slack de-registers too — so a quiet 5xx streak doesn't
         // just break requests, it can unregister the app.
-        new aws.cloudwatch.MetricAlarm('Api5xxErrors', {
-            name: `clank-${stage}-api-5xx`,
-            alarmDescription: 'API Gateway is returning 5xx — Discord/Slack may disable the endpoint.',
-            namespace: 'AWS/ApiGateway',
-            metricName: '5XXError',
-            dimensions: { ApiName: api.nodes.api.name, Stage: stage },
-            statistic: 'Sum',
-            period: 300,
-            evaluationPeriods: 1,
-            threshold: 1,
-            comparisonOperator: 'GreaterThanOrEqualToThreshold',
-            treatMissingData: 'notBreaching',
-            alarmActions: [alerts.arn],
-            okActions: [alerts.arn],
-        });
+        if (alerts) {
+            new aws.cloudwatch.MetricAlarm('Api5xxErrors', {
+                name: `clank-${stage}-api-5xx`,
+                alarmDescription: 'API Gateway is returning 5xx — Discord/Slack may disable the endpoint.',
+                namespace: 'AWS/ApiGateway',
+                metricName: '5XXError',
+                dimensions: { ApiName: api.nodes.api.name, Stage: stage },
+                statistic: 'Sum',
+                period: 300,
+                evaluationPeriods: 1,
+                threshold: 1,
+                comparisonOperator: 'GreaterThanOrEqualToThreshold',
+                treatMissingData: 'notBreaching',
+                alarmActions: [alerts.arn],
+                okActions: [alerts.arn],
+            });
+        }
 
         return {
             api: api.url,
