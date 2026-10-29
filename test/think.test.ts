@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
-import { buildUserContent, think } from '../src/lib/imageProcessor/think.js';
+import { buildTools, buildUserContent, think, worldSection } from '../src/lib/imageProcessor/think.js';
 
 // ── buildUserContent (pure) ──────────────────────────────────────
 
@@ -165,4 +165,32 @@ test('think: a transport error is caught and returned, not thrown', async () => 
     const r = await think('x', 'CONTEXT');
     assert.ok(r.error);
     assert.equal(r.type, 'text');
+});
+
+// ── Capabilities (outside-world tools) ───────────────────────────
+
+test('buildTools: no capabilities → lore + submit only', () => {
+    const names = buildTools({}).map((t) => t.function?.name || t.type);
+    assert.deepEqual(names, ['getEntityLore', 'getSemanticLore', 'submitResponse']);
+});
+
+test('buildTools: granted tools sit before submitResponse', () => {
+    const names = buildTools({ webSearch: true, market: true }).map((t) => t.function?.name || t.type);
+    assert.deepEqual(names, [
+        'getEntityLore',
+        'getSemanticLore',
+        'getMarketData',
+        'openrouter:web_search',
+        'submitResponse',
+    ]);
+});
+
+test('worldSection: empty without capabilities (prompt unchanged for tenants)', () => {
+    assert.equal(worldSection({}), '');
+});
+
+test('worldSection: names only the granted tools', () => {
+    const s = worldSection({ market: true });
+    assert.match(s, /getMarketData/);
+    assert.doesNotMatch(s, /Web search/);
 });

@@ -115,6 +115,7 @@ async function processImage(event, lambdaCtx: any = null) {
             messageContext,
             requester: userInfo.displayName || userInfo.handle,
             tokenMap,
+            capabilities: memory.legacyMind.capabilities,
             deadlineMs,
             // /clank has a visible "Generating…" message — swap it for a retry notice.
             onRetry: responseUrl

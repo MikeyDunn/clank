@@ -237,6 +237,7 @@ export const processDiscord = async (event: any, lambdaCtx: any = null) => {
             summon,
             deadlineMs,
             vectorScope: mind.vectorScope,
+            capabilities: mind.capabilities,
         });
 
         const ctx = {

@@ -214,6 +214,8 @@ src/
       discord/          Discord adapter: verify (Ed25519), client (@discordjs/rest incl. entitlements), message (reader)
     openrouter.ts       Shared OpenRouter HTTP client (chat/embed/credits)
     loreTools.ts        getEntityLore / getSemanticLore — tool defs + tenant-scoped vector search
+    capabilities.ts     Per-mind outside-world tool grants ({webSearch, market}); default none
+    marketTools.ts      getMarketData: Yahoo Finance search + chart (keyless), 24-pt price curve, fails soft
     embeddings.ts       OpenRouter text-embedding-3-small wrapper
     vectors.ts          S3 Vectors put/query + VectorScope/LEGACY_SCOPE (tenant stamp on write, filter on read)
     vectorSync.ts       Dual-write history → vector store (scope-aware)
@@ -276,6 +278,7 @@ Discord Lambda log group **hash rotates on every deploy** — re-find with `aws 
 - **consumeOutcome is the shared delivery back-half** — `runArtPipeline` → `ArtOutcome`, then `consumeOutcome(pipe, ctx, adapter)` owns remember/reflect/classify; each caller (Slack /clank, 🤖, Discord) supplies a 3-method `DeliveryAdapter`. `ctx.mind` selects the tenant mind (defaults to legacy → Slack unchanged)
 - **Personality is NOT hardcoded** — Clank evolves through interactions + reflection
 - **Clank owns his art** — no awareness of the think/generate split; failures are his. The imagePrompt is his interpretation (ARTISTIC VOICE), not a neutral transcription — personality must reach the IMAGE, since users never see his thoughts
+- **Outside-world tools are per-mind CAPABILITIES** (`capabilities.ts`, on `Mind` like the metering policy). Slack's `legacyMind` grants `webSearch` (OpenRouter server tool, Exa, 3 results x 1500 chars, ~$0.012/search incl. fee, already in `usage.cost`) + `market` (`getMarketData`, Yahoo chart/search; the quoteSummary/earnings endpoints need a crumb and 429, don't build on them). `forTenant()` grants none unless passed `capabilities`; `runArtPipeline` defaults to none (fail closed). The prompt section (`worldSection`) renders only when granted, so tenant prompts are byte-identical. `max_uses` is per API CALL, not per think, so he can search once per loop turn (bounded by MAX_TURNS); can't drop the tool after a search (Sonnet 5.5 refuses on tool-list changes). Stock calls are a deliberate joke mechanic for the Slack group (real buy/sell calls, broad questions argued from his lore, named stocks analyst-ish); revisit before granting `market` to any public/paid tenant
 - **Lore via tools, not context dump** — Clank recalls relevant lore on demand (`getEntityLore`/`getSemanticLore`) over the vector store, one coherent mind. Facts layer + frozen descriptions are RETIRED. Lore is user-authored (raw prompts), never Clank's own imagePrompts
 - **Recall by relevance, not recency** — the vector store surfaces relevant lore from any point in time; the 50-prompt recency window is only for thread continuity ("continue")
 - **Prompt caching** on the think step's static prefix — makes the tool loop affordable (~90% cheaper cached reads)

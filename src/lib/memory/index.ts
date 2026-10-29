@@ -5,6 +5,7 @@
 // callers keep using `memory.buildContext(...)` etc. UNCHANGED. `forTenant()`
 // returns a tenant-scoped mind on the prod table (Discord now; Slack later).
 
+import { type Capabilities, NO_CAPABILITIES } from '../capabilities.js';
 import { LEGACY_SCOPE, type VectorScope } from '../vectors.js';
 import { buildAliasTokens, buildContext as buildContextFor, resolveMentions } from './context.js';
 import { createElectroStore } from './electroStore.js';
@@ -64,6 +65,9 @@ export interface Mind {
     /** The mind's vector store (bucket/index/tenant) — pass to runArtPipeline so
      *  lore recall reads the SAME tenant-scoped store that remember writes to. */
     vectorScope: VectorScope;
+    /** Outside-world tools this mind's think step may use (web search, market
+     *  data) — pass to runArtPipeline. Paid per call, so opt-in per mind. */
+    capabilities: Capabilities;
     /** Cost-control gate BEFORE generation (Slack = always ok). Pass guildId to
      *  apply the server's shared free pool. */
     reserve(userId: string, guildId?: string | null): Promise<ReserveResult>;
@@ -84,7 +88,8 @@ function createMind(
     policy: MeteringPolicy,
     // Slack's Clank carries the funding-anxiety beat; paid tenants don't (see
     // buildContext).
-    includeFunding = true
+    includeFunding = true,
+    capabilities: Capabilities = NO_CAPABILITIES
 ): Mind {
     return {
         buildContext: (userId = null, prefetchedProfiles = null) =>
@@ -96,6 +101,7 @@ function createMind(
         historyCount: () => store.unreflectedCount('0'),
         claimName: (userId, name) => store.claimName(userId, name),
         vectorScope,
+        capabilities,
         reserve: (userId, guildId) => policy.reserve(userId, guildId),
         charge: (userId, guildId) => policy.charge(userId, guildId),
         grantEntitlement: (userId, entId, amount) => policy.grantEntitlement(userId, entId, amount),
@@ -105,11 +111,24 @@ function createMind(
 }
 
 // Default mind = the live Slack Clank. Unmetered by construction → unaffected.
-const legacy = createMind(createLegacyStore(), LEGACY_SCOPE, new UnmeteredPolicy());
+// The operator's own group, so it gets the outside-world tools (billed to the
+// personal OpenRouter account).
+const legacy = createMind(createLegacyStore(), LEGACY_SCOPE, new UnmeteredPolicy(), true, {
+    webSearch: true,
+    market: true,
+});
 
 /** A tenant-scoped mind on the prod table + prod vector store, WITH metering.
  *  Table/bucket default to the Lambda's PROD_* env (set for the Discord functions). */
-function forTenant(opts: { tenant: string; tableName?: string; vectorBucket?: string; vectorIndex?: string }): Mind {
+function forTenant(opts: {
+    tenant: string;
+    tableName?: string;
+    vectorBucket?: string;
+    vectorIndex?: string;
+    /** Outside-world tools for this tenant. Default none: each call costs real
+     *  money that a metered render's price doesn't yet account for. */
+    capabilities?: Capabilities;
+}): Mind {
     const tableName = opts.tableName || process.env.PROD_DYNAMODB_TABLE_NAME || '';
     const vectorScope: VectorScope = {
         bucket: opts.vectorBucket || process.env.PROD_VECTOR_BUCKET || 'clank-memory-vectors-prod',
@@ -130,7 +149,7 @@ function forTenant(opts: { tenant: string; tableName?: string; vectorBucket?: st
     // render free while their users' wallets keep working normally.
     const guildId = opts.tenant.startsWith('discord:') ? opts.tenant.slice('discord:'.length) : null;
     const policy = guildId && DISCORD_UNMETERED_GUILDS.has(guildId) ? new ExemptPolicy(metered) : metered;
-    return createMind(store, vectorScope, policy, false); // no funding anxiety on paid tenants
+    return createMind(store, vectorScope, policy, false, opts.capabilities); // no funding anxiety on paid tenants
 }
 
 /** The Discord wallet on its own (no tenant, no mind). Purchases are USER-owned

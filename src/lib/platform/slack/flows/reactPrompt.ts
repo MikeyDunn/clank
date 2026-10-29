@@ -244,6 +244,7 @@ async function processReactPrompt(event, deadlineMs: number | null = null) {
             channel,
             tokenMap,
             summon: { author: authorHandle, summoner: summonerHandle, self, conversation },
+            capabilities: memory.legacyMind.capabilities,
             deadlineMs,
         });
         // ── Delivery adapter for the shared consumer ──────────────────────

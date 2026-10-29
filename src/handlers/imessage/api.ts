@@ -221,6 +221,7 @@ async function generate(body: any, session: any, secret: string, lambdaCtx: any)
         referenceImageBase64,
         requester: displayName,
         vectorScope: mind.vectorScope,
+        capabilities: mind.capabilities,
         deadlineMs,
     });
     console.log(`[imessage] ${tenant.slice(0, 30)} kind=${pipe.kind} cost=$${(pipe.cost || 0).toFixed(4)}`);

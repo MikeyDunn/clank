@@ -7,6 +7,7 @@
 // This module owns the shared middle; each caller keeps its own remember() +
 // delivery. Add a third caller (@mentions, DMs) and it reuses this, not a copy.
 
+import { type Capabilities, NO_CAPABILITIES } from '../capabilities.js';
 import { downloadSlackFile } from '../platform/slack/index.js';
 import { LEGACY_SCOPE, type VectorScope } from '../vectors.js';
 import { generateImage } from './generate.js';
@@ -150,6 +151,10 @@ export interface ArtPipelineInput {
     // The mind's vector store (bucket/index/tenant) for lore recall. Defaults to
     // the Slack store, so untenanted (Slack) callers are unchanged.
     vectorScope?: VectorScope;
+    // Outside-world tools the mind grants (web search, market data). Defaults to
+    // NONE — fail closed, so a tenant caller that forgets this never inherits
+    // Slack's paid tools.
+    capabilities?: Capabilities;
     // Called once before a transient-error retry (e.g. to post a "retrying…"
     // notice). Omit for a silent retry.
     onRetry?: ((errorType: string) => Promise<void> | void) | null;
@@ -210,6 +215,7 @@ export async function runArtPipeline({
     tokenMap = {},
     summon = null,
     vectorScope = LEGACY_SCOPE,
+    capabilities = NO_CAPABILITIES,
     onRetry = null,
     deadlineMs = null,
 }: ArtPipelineInput): Promise<ArtOutcome> {
@@ -234,7 +240,8 @@ export async function runArtPipeline({
         summon,
         null,
         vectorScope,
-        channel
+        channel,
+        capabilities
     );
     let cost = thinkResult.cost || 0;
 

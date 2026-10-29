@@ -3,7 +3,9 @@
 // and crafts detailed image prompts that resolve lore/appearance/context.
 
 import { RESPONSE_TOOL, THINK_PROMPT } from '../../prompts/think.js';
+import { type Capabilities, NO_CAPABILITIES } from '../capabilities.js';
 import { executeLoreTool, LORE_TOOLS } from '../loreTools.js';
+import { executeMarketTool, MARKET_TOOL } from '../marketTools.js';
 import { MODEL_ROLES } from '../models.js';
 import * as openrouter from '../openrouter.js';
 import { LEGACY_SCOPE, type VectorScope } from '../vectors.js';
@@ -46,8 +48,50 @@ export interface ThinkImage {
     note?: string | null;
 }
 
-// Lore-recall tools + the final-answer tool, sent every turn.
-const TOOLS = [...LORE_TOOLS, RESPONSE_TOOL];
+// OpenRouter server-side web search: runs inside the completion (search → read →
+// continue), so results never land in our message array or get re-read on later
+// turns. Exa honours max_characters (the default engine ignored it: ~14k tokens
+// per search vs ~3k); usage.cost already includes its $0.007/search fee.
+const WEB_SEARCH_TOOL = {
+    type: 'openrouter:web_search',
+    // max_uses: 1 is a hard ceiling per request — one search covers a news
+    // prompt, and it bounds worst-case cost at ~$0.012 however eager he gets.
+    parameters: { engine: 'exa', max_results: 3, max_characters: 1500, max_uses: 1 },
+};
+
+/** The tool list for one mind: lore recall + whatever outside-world tools it
+ *  grants + the final-answer tool. Constant for the whole loop (Sonnet 5.5
+ *  refuses if the list changes mid-conversation). Pure. */
+function buildTools(caps: Capabilities): any[] {
+    return [
+        ...LORE_TOOLS,
+        ...(caps.market ? [MARKET_TOOL] : []),
+        ...(caps.webSearch ? [WEB_SEARCH_TOOL] : []),
+        RESPONSE_TOOL,
+    ];
+}
+
+/** System-prompt section describing the granted outside-world tools; '' when
+ *  none, so minds without them see a byte-identical prompt. Pure. */
+function worldSection(caps: Capabilities): string {
+    const lines: string[] = [];
+    if (caps.webSearch)
+        lines.push(
+            "- Web search: look up real news and current events you couldn't know. Only for the real world, never for the people you know or your lore (that's memory)."
+        );
+    // The stock-call license is a joke mechanic for the operator's own group.
+    // Revisit before granting `market` to a public/paid tenant.
+    if (caps.market)
+        lines.push(
+            '- getMarketData(query, range): a live quote and price curve for a real stock, index, or crypto. The curve is the shape of the move; draw it. Asked whether to buy or sell, or what to buy, make a real call (buy, sell, hold, run) and commit to it with no hedging. You are not an analyst: your thesis comes from YOUR world (your lore, your people, the running bits, your own fixations), and you go find the real company that fits it. The real numbers are just the evidence you bend to prove you were right. When the numbers show a big move, one search can tell you why.'
+        );
+    if (!lines.length) return '';
+    return `YOUR WINDOW ON THE WORLD:
+${lines.join('\n')}
+Use these only when the request is about the real world right now. What you learn is raw material for the art, filtered through your own take: don't recite headlines or numbers back.
+
+`;
+}
 // Tool-loop budget. On the final turn we drop the lore tools and force
 // submitResponse (see the think loop) — otherwise dense-lore requests (e.g. the
 // huge "stank" cluster) can spend every turn recalling and never submit, which
@@ -161,9 +205,11 @@ async function think(
     summon: SummonContext | null = null,
     modelOverride: string | null = null,
     vectorScope: VectorScope = LEGACY_SCOPE,
-    channel: ChannelContext | null = null
+    channel: ChannelContext | null = null,
+    capabilities: Capabilities = NO_CAPABILITIES
 ) {
     const startTime = Date.now();
+    const tools = buildTools(capabilities);
     const model = modelOverride || MODEL_ROLES.text; // override for local A/B evals
 
     const userContent = buildUserContent(prompt, messageContext, requester, summon, channel);
@@ -187,7 +233,13 @@ async function think(
     const messages: any[] = [
         {
             role: 'system',
-            content: [{ type: 'text', text: THINK_PROMPT + context, cache_control: { type: 'ephemeral' } }],
+            content: [
+                {
+                    type: 'text',
+                    text: THINK_PROMPT + worldSection(capabilities) + context,
+                    cache_control: { type: 'ephemeral' },
+                },
+            ],
         },
         {
             role: 'user',
@@ -196,6 +248,7 @@ async function think(
     ];
 
     let cost = 0;
+    let webSearches = 0;
     const toolLog: any[] = [];
 
     try {
@@ -215,8 +268,9 @@ async function think(
                         'Your recall budget is spent. Deliver your answer now by calling submitResponse with what you already have.',
                 });
             }
-            const response = await openrouter.chat({ model, messages, tools: TOOLS }, 60000);
+            const response = await openrouter.chat({ model, messages, tools }, 60000);
             cost += response.usage?.cost || 0;
+            webSearches += response.usage?.server_tool_use_details?.web_search_requests || 0;
             const msg = response.choices?.[0]?.message;
             if (!msg) break;
             messages.push(msg);
@@ -230,7 +284,7 @@ async function think(
                 try {
                     const result = JSON.parse(submit.function.arguments || '{}');
                     console.log(
-                        `Think: type=${result.type} (${duration}s, $${cost.toFixed(4)}, recalls=${JSON.stringify(toolLog)})`
+                        `Think: type=${result.type} (${duration}s, $${cost.toFixed(4)}, recalls=${JSON.stringify(toolLog)}${webSearches ? `, webSearches=${webSearches}` : ''})`
                     );
                     return { ...result, cost };
                 } catch {
@@ -248,7 +302,8 @@ async function think(
                 }
             }
 
-            // Otherwise these are lore recalls — execute them and loop.
+            // Otherwise these are recalls (lore, or market data when granted) —
+            // execute them and loop.
             if (calls.length) {
                 for (const tc of calls) {
                     let args: any = {};
@@ -257,9 +312,16 @@ async function think(
                     } catch {
                         /* ignore */
                     }
-                    const results = await executeLoreTool(tc.function.name, args, tokenMap, vectorScope);
+                    const name = tc.function.name;
+                    if (name === 'getMarketData' && capabilities.market) {
+                        const data = await executeMarketTool(args);
+                        toolLog.push({ t: 'M', a: args.query, n: 'error' in data ? 0 : data.series.length });
+                        messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(data) });
+                        continue;
+                    }
+                    const results = await executeLoreTool(name, args, tokenMap, vectorScope);
                     toolLog.push({
-                        t: tc.function.name === 'getEntityLore' ? 'E' : 'S',
+                        t: name === 'getEntityLore' ? 'E' : 'S',
                         a: args.name || args.query,
                         n: results.length,
                     });
@@ -286,4 +348,4 @@ async function think(
     }
 }
 
-export { buildUserContent, think };
+export { buildTools, buildUserContent, think, worldSection };
