@@ -124,21 +124,30 @@ async function processTshirt(event) {
         // Generate shirt design with original image as reference
         const shirtPrompt = `Convert this image into a t-shirt graphic on a solid bright green (#00FF00) chroma key background. Stay as faithful as possible to the original design — same art style, same composition, same elements, same colors. Extract the core graphic from the image and reproduce it cleanly as an isolated design element. Centered composition, clean edges, no background scene. The entire background must be solid #00FF00 green. Leave at least 50 pixels of solid green padding on ALL four sides — nothing should touch or get cut off at any edge. Match the original as closely as you can.\n\nOriginal prompt for context: "${prompt}"`;
 
-        // Use gpt-5-image (not mini) for higher fidelity to the reference
-        console.log('Tshirt generating with reference image (gpt-5-image)');
-        const genResult = await generateImage(
-            shirtPrompt,
-            referenceBase64 ? [{ url: referenceBase64, use: 'the design to convert into the shirt graphic' }] : [],
-            'openai/gpt-5-image'
-        );
-        if (genResult.error) {
-            console.error('Tshirt generate error:', genResult.error.response?.data || genResult.error.message);
+        // gpt-5-image (not mini) for higher fidelity to the reference. Its moderation
+        // is stricter than the Gemini line that drew the original, so it silently
+        // returns no image on some of Clank's own art (3 of 8 shirts, Sep 2026) —
+        // those fall back once to Gemini, which already accepted the subject.
+        const references = referenceBase64
+            ? [{ url: referenceBase64, use: 'the design to convert into the shirt graphic' }]
+            : [];
+        let result: ReturnType<typeof parseResponse> | null = null;
+        for (const model of ['openai/gpt-5-image', 'google/gemini-3.1-flash-image']) {
+            console.log(`Tshirt generating with reference image (${model})`);
+            const genResult = await generateImage(shirtPrompt, references, model);
+            if (genResult.error) {
+                console.error('Tshirt generate error:', genResult.error.response?.data || genResult.error.message);
+                continue;
+            }
+            result = parseResponse(genResult.response, genResult.startTime);
+            console.log('Tshirt parse result:', result.outcome, result.errorType || '', result.message || '');
+            if (result.outcome === 'success') break;
+            console.log('Tshirt no-image text:', (result.textResponse || '').slice(0, 500));
+        }
+        if (!result) {
             await send({ text: "⚠️ Couldn't generate the shirt design. Try again." });
             return { statusCode: 200, body: 'Tshirt generate failed' };
         }
-
-        const result = parseResponse(genResult.response, genResult.startTime);
-        console.log('Tshirt parse result:', result.outcome, result.errorType || '', result.message || '');
         if (result.outcome !== 'success') {
             await send({ text: "⚠️ The image model couldn't create a shirt design for this." });
             return { statusCode: 200, body: 'Tshirt no image' };

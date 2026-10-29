@@ -18,18 +18,28 @@ const headers = {
  *
  * Note: axios had per-call timeouts; fetch has none natively. Omitted here —
  * the Lambda's own 300s budget bounds the work.
+ *
+ * Gateway errors (502/503/504, Printify's Cloudflare edge) are retried twice with
+ * backoff — a single 502 on product create killed a 4-vote shirt on 2026-09-29
+ * (verified no product was written, so the POST retry doesn't duplicate).
  */
+const RETRY_STATUSES = new Set([502, 503, 504]);
+const RETRY_DELAYS_MS = [2000, 5000];
+
 async function printifyApi(path: string, method: string, body?: any): Promise<any> {
-    const res = await fetch(`${PRINTIFY_API}${path}`, {
-        method,
-        headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (!res.ok) {
+    for (let attempt = 0; ; attempt++) {
+        const res = await fetch(`${PRINTIFY_API}${path}`, {
+            method,
+            headers,
+            body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        if (res.ok) return res.status === 204 ? null : res.json();
         const text = await res.text().catch(() => '');
-        throw new Error(`Printify ${method} ${path} → ${res.status} ${text.slice(0, 300)}`);
+        const err = new Error(`Printify ${method} ${path} → ${res.status} ${text.slice(0, 300)}`);
+        if (!RETRY_STATUSES.has(res.status) || attempt >= RETRY_DELAYS_MS.length) throw err;
+        console.warn(`Printify ${method} ${path} → ${res.status}, retrying in ${RETRY_DELAYS_MS[attempt]}ms`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
     }
-    return res.json();
 }
 
 // What a publish call syncs to the storefront. Every publish uses the full set.
@@ -148,10 +158,12 @@ async function createTeeProduct(name, imageId) {
     ]);
     const skipSizes = new Set(['3XL', '4XL', '5XL']);
 
+    // Read the structured options, not the title: Printify flipped the title from
+    // "Color / Size" to "Size / Color" (Oct 2026), which silently disabled every
+    // variant, and a 0-enabled product never renders mockups.
     const variants = allVariants.map((v) => {
-        const parts = v.title?.split(' / ') || [];
-        const color = parts[0] || '';
-        const size = parts[1] || '';
+        const color = v.options?.color || '';
+        const size = v.options?.size || '';
         return {
             id: v.id,
             price: (v.cost || 1200) + MARKUP,
@@ -161,6 +173,7 @@ async function createTeeProduct(name, imageId) {
 
     const enabled = variants.filter((v) => v.is_enabled).length;
     console.log(`Creating tee with ${variants.length} variants (${enabled} enabled)`);
+    if (enabled === 0) throw new Error('Tee has 0 enabled variants: Printify catalog format changed?');
 
     return createProduct({
         title: name,
@@ -220,8 +233,26 @@ function pickFrontMockup(detail: any): string | null {
 async function createProductsFromImage(imageUrl, name) {
     const image = await uploadImage(imageUrl, `${name.replace(/[^a-z0-9]/gi, '-')}.png`);
 
-    // Create both products in parallel
-    const [tee, sticker] = await Promise.all([createTeeProduct(name, image.id), createStickerProduct(name, image.id)]);
+    // Create both products in parallel. allSettled, not all: with Promise.all a
+    // tee failure returned while the sticker was still in flight, Lambda froze it,
+    // and it finished on the NEXT invocation as a published orphan. On a partial
+    // failure, delete the survivor so a retry starts clean.
+    const [teeRes, stickerRes] = await Promise.allSettled([
+        createTeeProduct(name, image.id),
+        createStickerProduct(name, image.id),
+    ]);
+    if (teeRes.status === 'rejected' || stickerRes.status === 'rejected') {
+        for (const r of [teeRes, stickerRes]) {
+            if (r.status !== 'fulfilled') continue;
+            await printifyApi(`/shops/${SHOP_ID}/products/${r.value.id}.json`, 'DELETE').then(
+                () => console.log('Deleted orphan product:', r.value.title),
+                (err) => console.error('Failed to delete orphan product:', r.value.id, err.message)
+            );
+        }
+        throw teeRes.status === 'rejected' ? teeRes.reason : (stickerRes as PromiseRejectedResult).reason;
+    }
+    const tee = teeRes.value;
+    const sticker = stickerRes.value;
 
     // Poll the tee until BOTH external.id (Pop-Up Store assigns it async after the
     // initial publish) AND mockups are ready. Mockups render from creation time, so
