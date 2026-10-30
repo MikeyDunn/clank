@@ -47,6 +47,10 @@ behind one shared core.
   Vectors; Clank *recalls* relevant lore on demand via `getEntityLore` /
   `getSemanticLore` tools (with multi-hop), instead of stuffing recent history into
   the prompt. DynamoDB stays the source of truth.
+- **Per-community capabilities.** Outside-world tools (web search for current
+  events, live market data with a price curve to draw) are grants on a mind, not
+  platform branches. Each one is opt-in per community, since each call costs money,
+  and a mind without them sees a byte-identical prompt.
 - **Prompt caching** on the think step's large static prefix (`cache_control`) —
   the tool-calling loop re-reads it at ~1/10th the cost.
 - **Evolving identity.** Every 50 interactions a reflection step rewrites Clank's

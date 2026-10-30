@@ -30,7 +30,7 @@ The goal is an organic, evolving AI personality — not a feature checklist. Whe
 | `slackImageCommand` | `src/handlers/slack/slashCommand.slackImageCommand` | 30s | Entry point for `/clank` slash command |
 | `slackInteraction` | `src/handlers/slack/interactions.handleInteraction` | 30s | "Ask Clank" / "Make T-Shirt" message shortcuts + Ask Clank modal submission (no buttons — results post directly) |
 | `slackEvents` | `src/handlers/slack/events.handleEvent` | 10s | Events API — 👕 reactions → t-shirt; 🤖 reaction → respond to the reacted message |
-| `imageProcessor` | `src/handlers/slack/processor.processImage` | 300s | Async (Slack): think (with lore tools) → generate → deliver |
+| `imageProcessor` | `src/handlers/slack/processor.processImage` | 300s | Async (Slack): think (lore tools + web search/market capabilities) → generate → deliver |
 | Discord interactions | `src/handlers/discord/interactions.handleDiscordInteraction` | 10s | `POST /discord/interactions` — Ed25519 verify, PING, defer /clank + "Summon Clank" + /credits, async-invoke the processor |
 | `DiscordProcessor` | `src/handlers/discord/processor.processDiscord` | 300s | Async (Discord): per-guild mind → think → generate → edit deferred reply. IAM for prod stores ONLY (no `clank-mind-dev`). No sharp layer (no t-shirts). |
 | `ImessageApi` | `src/handlers/imessage/api.handleImessage` | 300s | **Function URL** (sync long calls): `/auth` (Apple JWKS verify → session JWT; env-gated dev branch), `/generate` (per-chat `forTenant` mind → pipeline → signed DRAFT token, writes nothing), `/commit` (verify draft → remember+reflect). Two-phase per spec Gap 2: refusals/errors + never-INSERTED drafts don't enter memory. Commit fires client-side at INSERT (deterministic, our button) — NOT on Apple's send callbacks (a closed pane never receives didStartSending; the operator's call 2026-08-08). Insert also auto-dismisses the pane. Draft TTL 24h to cover the retry-on-next-activation path. Metering seams present, not engaged until StoreKit. Prod-only IAM; bills the Discord OpenRouter key. |
@@ -39,7 +39,7 @@ The goal is an organic, evolving AI personality — not a feature checklist. Whe
 1. User types `/clank draw a robot in space` → Slack POSTs to `slackImageCommand`
 2. Handler checks channel membership via `ensureBotInChannel()` (auto-joins public, gates private)
 3. Acknowledges immediately ("Generating...", Slack 3s timeout), invokes `imageProcessor` async
-4. **Think** (Sonnet, tool-calling loop): sees context (identity, journal, people, recent 50 prompts). **Recalls lore on demand** via `getEntityLore`/`getSemanticLore` tools (vector search over history), then decides IMAGE or TEXT and returns `{type, thoughts, imagePrompt}` (or `response` for text)
+4. **Think** (Sonnet, tool-calling loop): sees context (identity, journal, people, recent 50 prompts). **Recalls lore on demand** via `getEntityLore`/`getSemanticLore` tools (vector search over history), plus web search + `getMarketData` (Slack's capabilities, see Known Decisions), then decides IMAGE or TEXT and returns `{type, thoughts, imagePrompt}` (or `response` for text)
 5. **Generate** (Mini): receives ONLY the `imagePrompt` — no context, no names. Returns image
 6. **Save**: prompt, thoughts, imagePrompt, imageUrl, cost → DynamoDB (and history dual-written to S3 Vectors)
 7. **Deliver**: posts **directly to the channel** via `chat.postMessage` (no preview/Send-Cancel gate — removed once config + retries were gone). Content (image/text) is public; refusals and technical errors are generic and stay ephemeral to the requester.
@@ -89,12 +89,12 @@ Serverless, same shape as Slack (ack-then-async). Adapter in `lib/platform/disco
 ### Model Roles (`MODEL_ROLES` in `lib/models.ts`)
 | Role | Model | Purpose |
 |------|-------|---------|
-| `text` | `anthropic/claude-sonnet-5` | Think step: recall lore via tools, decide image/text, craft imagePrompt + thoughts |
+| `text` | `anthropic/claude-sonnet-5.5` | Think step: recall lore (+ web/market when granted) via tools, decide image/text, craft imagePrompt + thoughts |
 | `image` | `google/gemini-3.1-flash-lite-image` (Nano Banana 2 Lite) | Image generation from the imagePrompt (no context). **Trial** (2026-07, was `openai/gpt-5-image-mini`): cheapest+fastest in the bake-off (~$0.034/img, ~3s vs mini's ~$0.047/54-74s), no refusals, and `in:[image,text]` so reference-image editing (Ask Clank + 🤖-reaction) works — smoke-tested. Revert to `google/gemini-2.5-flash-image` or `openai/gpt-5-image-mini` if the line loses character. |
-| `reflection` | `anthropic/claude-sonnet-5` | Periodic identity + journal rewrite (every 50 interactions) |
+| `reflection` | `anthropic/claude-sonnet-5.5` | Periodic identity + journal rewrite (every 50 interactions) |
 
 ### Pipeline: Think (with tools) → Generate
-1. **Think** (`think.ts`, Sonnet): a **tool-calling loop**. Clank recalls lore with `getEntityLore`/`getSemanticLore` (over the vector store), then returns `{type, thoughts, imagePrompt}`. The system+context prefix uses **prompt caching** (`cache_control`) so the tool-loop turns re-read it ~90% cheaper. ~$0.02-0.07/request. The answer is delivered via the **`submitResponse` tool** (constrained decoding, forced on the final turn of an 8-turn budget) — there is no JSON-in-prose to parse or repair.
+1. **Think** (`think.ts`, Sonnet): a **tool-calling loop**. Clank recalls lore with `getEntityLore`/`getSemanticLore` (over the vector store), and, when his mind grants the capabilities, searches the web (OpenRouter server tool, runs inside the completion) or pulls `getMarketData`, then returns `{type, thoughts, imagePrompt}`. The system+context prefix uses **prompt caching** (`cache_control`) so the tool-loop turns re-read it ~90% cheaper. ~$0.02-0.07/request. The answer is delivered via the **`submitResponse` tool** (constrained decoding, forced on the final turn of an 8-turn budget) — there is no JSON-in-prose to parse or repair.
 2. **Generate** (`generate.ts`, Mini): receives ONLY the `imagePrompt`. No context, no lore, no names. Mini is the hand, not the brain.
 
 **Clank owns the art** — he doesn't know about the think/generate split. Failures are his, not "the image model's." The imagePrompt is HIS interpretation, not a neutral transcription (see ARTISTIC VOICE in the think prompt).
@@ -102,7 +102,7 @@ Serverless, same shape as Slack (ack-then-async). Adapter in `lib/platform/disco
 ## Memory System
 
 ### What Clank sees per request (context)
-1. **System prompt** — personality, artistic voice, JSON format, appearance/lore rules, tool instructions
+1. **System prompt** — personality, artistic voice, JSON format, appearance/lore rules, tool instructions; plus `YOUR WINDOW ON THE WORLD` (web search / market data / stock-call license) only when the mind grants capabilities
 2. **Core identity** — self-portrait (~10-14 distinct ideas), evolved every 50 interactions by reflection (carried forward, not rewritten from scratch — durable core persists/deepens, stale drops)
 3. **Era chapters** — `EARLIER CHAPTERS`: up to 3 one-paragraph autobiography condensations (one written every 10th reflection over the last 10 journal entries; stored on `META|IDENTITY.eraSummaries`) so medium-term self-history survives the small journal window
 4. **3 journal entries** — append-only diary (recent window)
@@ -249,7 +249,8 @@ Git remote: `origin` → `github.com/MikeyDunn/clank.git`. Deploy with `npm run 
 - Local scripts: `AWS_PROFILE=<your-profile> DYNAMODB_TABLE_NAME=clank-mind-dev node --env-file=.env scripts/x.ts` — `source .env` sets shell vars but doesn't export them to node children (→ null table / 401); `--env-file` does. Descending GSI via AWS CLI needs `--no-scan-index-forward`.
 - One-off `.mjs`/node scripts that `import` project deps (`@aws-sdk/*`, etc.) MUST run from inside the repo — ESM resolves `node_modules` from the script's own directory upward, and `NODE_PATH` is ignored (scratchpad scripts fail `ERR_MODULE_NOT_FOUND`). Put throwaway scripts in a repo subdir; scripts using only `node:` builtins + global `fetch` can live anywhere.
 - Adding new DynamoDB/s3vectors ops requires updating IAM in `sst.config.ts` — fails silently in Lambda otherwise
-- Test the think step locally: build a context via `memory.buildContext()`, call `think(prompt, context)`
+- Test the think step locally: build a context via `memory.buildContext()`, call `think(prompt, context, …)`. Pass `memory.legacyMind.capabilities` as the 11th arg or web search/market are off (default none). Read-only (no remember/post), ~$0.05–0.07 per call
+- `npm run deploy:dev` builds the WORKING TREE: uncommitted edits ship too. Check `git status` first
 - Replay a missed reaction manually: `aws lambda invoke --function-name <processor> --payload '{"tshirtReaction":true,"channelId":"...","messageTs":"..."}'` (or `"reactPrompt":true`) — safe to re-run; SHIRT_LOG / REACTED# locks absorb duplicates.
 
 ```bash
