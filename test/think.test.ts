@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
-import { buildTools, buildUserContent, think, worldSection } from '../src/lib/imageProcessor/think.js';
+import { buildTools, buildUserContent, roomSection, think, worldSection } from '../src/lib/imageProcessor/think.js';
 
 // ── buildUserContent (pure) ──────────────────────────────────────
 
@@ -194,4 +194,9 @@ test('worldSection: names only the granted tools', () => {
     const s = worldSection({ market: true });
     assert.match(s, /getMarketData/);
     assert.doesNotMatch(s, /Web search/);
+});
+
+test('roomSection: only when the mind grants edgyHumor', () => {
+    assert.equal(roomSection({}), '');
+    assert.match(roomSection({ edgyHumor: true }), /THIS ROOM'S STANDING RULES/);
 });

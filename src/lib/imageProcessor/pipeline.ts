@@ -10,7 +10,7 @@
 import { type Capabilities, NO_CAPABILITIES } from '../capabilities.js';
 import { downloadSlackFile } from '../platform/slack/index.js';
 import { LEGACY_SCOPE, type VectorScope } from '../vectors.js';
-import { generateImage } from './generate.js';
+import { generateImage, generateViaXai, genTimeoutMs } from './generate.js';
 import { classifyAxiosError, parseResponse, RETRYABLE_ERRORS } from './parse.js';
 import { type ChannelContext, type MessageContext, type SummonContext, type ThinkImage, think } from './think.js';
 import { detectImageMime } from './upload.js';
@@ -327,6 +327,29 @@ export async function runArtPipeline({
             const retried = parseResponse(retry.response, retry.startTime);
             cost += retried.cost || 0;
             if (retried.outcome === 'success') result = retried;
+        }
+    }
+    // Still refused → the mind's fallback renderer (Grok Imagine), once. The two
+    // models filter different things, so this covers what either will draw.
+    // Same imagePrompt, never a re-think.
+    const fallbackBudget = deadlineMs ? deadlineMs - Date.now() : Number.POSITIVE_INFINITY;
+    if (
+        capabilities.imageFallback &&
+        process.env.XAI_API_KEY &&
+        result.outcome === 'no_image' &&
+        (result.errorType === 'IMAGE_SAFETY' || result.errorType === 'NO_IMAGE_GENERATED') &&
+        fallbackBudget > RETRY_MIN_BUDGET_MS
+    ) {
+        console.log(`No image (${result.errorType}) — falling back to Grok Imagine`);
+        const startTime = Date.now();
+        try {
+            const response = await generateViaXai(imagePrompt, genRefs, genTimeoutMs(deadlineMs));
+            const fell = parseResponse(response, startTime);
+            cost += fell.cost || 0;
+            console.log(`Grok fallback: ${fell.outcome}${fell.errorType ? ` (${fell.errorType})` : ''}`);
+            if (fell.outcome === 'success') result = fell;
+        } catch (err) {
+            console.error('Grok fallback failed:', err.message);
         }
     }
     console.log(`Generation total: $${cost.toFixed(4)} (outcome: ${result.outcome})`);

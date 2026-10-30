@@ -10,6 +10,12 @@ export interface Capabilities {
     webSearch?: boolean;
     /** getMarketData — live quotes + a price-curve series (Yahoo Finance). */
     market?: boolean;
+    /** The room's standing rule: crude humor and even-handed religious satire
+     *  are welcome, drawn as the actual gag (no cutaways). */
+    edgyHumor?: boolean;
+    /** When the primary image model refuses, retry once on xAI Grok Imagine
+     *  (needs XAI_API_KEY). The two models refuse different things. */
+    imageFallback?: boolean;
 }
 
 /** The default for any caller that doesn't pass a mind's capabilities: fail closed. */

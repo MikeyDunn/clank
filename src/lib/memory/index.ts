@@ -116,6 +116,8 @@ function createMind(
 const legacy = createMind(createLegacyStore(), LEGACY_SCOPE, new UnmeteredPolicy(), true, {
     webSearch: true,
     market: true,
+    edgyHumor: true,
+    imageFallback: true,
 });
 
 /** A tenant-scoped mind on the prod table + prod vector store, WITH metering.

@@ -128,6 +128,8 @@ export default $config({
                 ...environment,
                 VLLM_IMAGE_URL: process.env.VLLM_IMAGE_URL || '',
                 VLLM_API_KEY: process.env.VLLM_API_KEY || '',
+                // Grok Imagine fallback when Gemini refuses (Slack's imageFallback capability).
+                XAI_API_KEY: process.env.XAI_API_KEY || '',
             },
             permissions: dataPermissions,
         });

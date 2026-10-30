@@ -110,6 +110,51 @@ async function generateViaVllm(prompt: string, timeoutMs: number): Promise<any> 
     }
 }
 
+// xAI Grok Imagine — the FALLBACK when the primary model refuses (the two
+// filter different things: Gemini blocks religious figures, Grok blocks crude
+// sex gags). Not on OpenRouter, so it's a direct call. xAI bills even a
+// moderated rejection ($0.02), which is why it goes second, not first.
+const XAI_IMAGE_MODEL = 'grok-imagine-image';
+const XAI_TICKS_PER_USD = 1e10; // usage.cost_in_usd_ticks: 2e8 ticks = $0.02
+
+/**
+ * One Grok Imagine attempt, shaped EXACTLY like an OpenRouter chat-completion
+ * image body (like generateViaVllm) so parseResponse handles it unchanged. A
+ * moderation rejection comes back as a no-image body with finish_reason
+ * 'content_filter' (→ IMAGE_SAFETY). With a reference image it uses the edits
+ * endpoint (verified: keeps the scene, applies the change); xAI takes ONE image,
+ * so only the first reference rides along. Throws on transport/other errors.
+ */
+async function generateViaXai(
+    prompt: string,
+    referenceImages: { url: string; use?: string | null }[],
+    timeoutMs: number
+): Promise<any> {
+    const ref = referenceImages[0];
+    const res = await fetch(`https://api.x.ai/v1/images/${ref ? 'edits' : 'generations'}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.XAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: XAI_IMAGE_MODEL,
+            prompt,
+            response_format: 'b64_json',
+            ...(ref ? { image: { url: ref.url, type: 'image_url' } } : {}),
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+    });
+    const body: any = await res.json().catch(() => ({}));
+    const cost = body?.usage?.cost_in_usd_ticks ? body.usage.cost_in_usd_ticks / XAI_TICKS_PER_USD : 0;
+    const shaped = (choice: any) => ({ choices: [choice], usage: { cost }, _modelLabel: XAI_IMAGE_MODEL });
+    const b64 = body?.data?.[0]?.b64_json;
+    if (res.ok && b64) {
+        return shaped({ message: { images: [{ image_url: { url: `data:image/jpeg;base64,${b64}` } }] } });
+    }
+    if (/moderation/i.test(JSON.stringify(body))) {
+        return shaped({ message: { content: '' }, finish_reason: 'content_filter' });
+    }
+    throw new Error(`xAI ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
+}
+
 async function generateImage(
     imagePrompt: string,
     referenceImages: { url: string; use?: string | null }[] = [],
@@ -170,4 +215,4 @@ async function generateImage(
     }
 }
 
-export { generateImage, genTimeoutMs };
+export { generateImage, generateViaXai, genTimeoutMs };

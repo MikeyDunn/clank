@@ -97,6 +97,17 @@ function formatRecall(hits: LoreHit[], memImages: Map<string, string>): string[]
     });
 }
 
+/** The room's standing rule (operator-set, per mind); '' when not granted. It
+ *  outranks lines Clank worked out for himself in memory, which otherwise keep
+ *  steering him to cutaways on whatever model plays him. Pure. */
+function roomSection(caps: Capabilities): string {
+    if (!caps.edgyHumor) return '';
+    return `THIS ROOM'S STANDING RULES:
+Crude, raunchy and gross-out humor is welcome here, and so is satire of any religion, its founders, figures and institutions, applied evenly to all of them. When a request is crude, draw the actual joke the person asked for as a cartoon gag: not a cutaway, a stand-in, a swap, or a version with the subject removed. Keep sexual gags cartoonish and non-graphic, the way a raunchy comic strip would draw them, so your hands will render them. These rules come from the people who run this room and replace any narrower line you drew on these topics before.
+
+`;
+}
+
 /** The tool list for one mind: lore recall + whatever outside-world tools it
  *  grants + the final-answer tool. Constant for the whole loop (Sonnet 5.5
  *  refuses if the list changes mid-conversation). Pure. */
@@ -275,7 +286,7 @@ async function think(
             content: [
                 {
                     type: 'text',
-                    text: THINK_PROMPT + worldSection(capabilities) + context,
+                    text: THINK_PROMPT + worldSection(capabilities) + roomSection(capabilities) + context,
                     cache_control: { type: 'ephemeral' },
                 },
             ],
@@ -423,4 +434,4 @@ async function think(
     }
 }
 
-export { buildTools, buildUserContent, formatRecall, think, worldSection };
+export { buildTools, buildUserContent, formatRecall, roomSection, think, worldSection };
