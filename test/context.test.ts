@@ -38,7 +38,7 @@ test('formatTimeAgo: months', () => {
 
 // ── buildContext: era chapters (stub MindStore, no network — funding off) ──
 
-import { buildContext } from '../src/lib/memory/context.js';
+import { buildContext, ownAnswer } from '../src/lib/memory/context.js';
 
 // Partial stub — buildContext only touches these four reads.
 const stubStore = (identity): any => ({
@@ -71,4 +71,53 @@ test('buildContext: renders era chapters before recent thoughts', async () => {
 test('buildContext: no era section when identity has none', async () => {
     const ctx = await buildContext(stubStore({ coreIdentity: 'I am Clank.', reflectionCount: 3 }), null, null, false);
     assert.ok(!ctx.includes('EARLIER CHAPTERS'));
+});
+
+test('ownAnswer: image rows show the imagePrompt, text rows the spoken reply', () => {
+    assert.equal(
+        ownAnswer({ outcome: 'success', imagePrompt: 'a bronze hippo\n  robot' }),
+        'you drew: a bronze hippo robot'
+    );
+    assert.equal(ownAnswer({ outcome: 'text_only', publicResponse: 'No.' }), 'you said: "No."');
+    assert.equal(ownAnswer({ outcome: 'error', imagePrompt: 'x' }), null);
+    assert.equal(ownAnswer({ outcome: 'success' }), null);
+});
+
+test('ownAnswer: long answers are clipped', () => {
+    const out = ownAnswer({ outcome: 'success', imagePrompt: 'a'.repeat(500) }) as string;
+    assert.ok(out.endsWith('…'));
+    assert.ok(out.length < 260);
+});
+
+test('buildContext: recent memory pairs each ask with his answer', async () => {
+    const store: any = {
+        recentHistory: async () => [
+            { prompt: 'draw a cat', outcome: 'success', imagePrompt: 'A tabby cat on a windowsill', handle: 'ian' },
+        ],
+        getIdentity: async () => ({ coreIdentity: 'I am Clank.', reflectionCount: 1 }),
+        getJournal: async () => [],
+        scanProfiles: async () => [],
+    };
+    const ctx = await buildContext(store, null, null, false);
+    assert.ok(ctx.includes('ian: "draw a cat"\n    ↳ you drew: A tabby cat on a windowsill'));
+});
+
+test('buildContext: only the most recent rows carry his thoughts', async () => {
+    const rows = Array.from({ length: 12 }, (_, i) => ({
+        prompt: `ask ${i}`,
+        outcome: 'success',
+        imagePrompt: `drawing ${i}`,
+        response: `thought ${i}`,
+    })).reverse(); // newest-first, like the store
+    const store: any = {
+        recentHistory: async () => rows,
+        getIdentity: async () => ({ coreIdentity: 'I am Clank.', reflectionCount: 1 }),
+        getJournal: async () => [],
+        scanProfiles: async () => [],
+    };
+    const ctx = await buildContext(store, null, null, false);
+    assert.ok(!ctx.includes('thought 1"'));
+    assert.ok(ctx.includes('drawing 1'));
+    assert.ok(ctx.includes('you thought: "thought 2"'));
+    assert.ok(ctx.includes('you thought: "thought 11"'));
 });

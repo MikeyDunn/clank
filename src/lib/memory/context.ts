@@ -1,6 +1,7 @@
 // ─── Context building ────────────────────────────────────────────
 // Builds the context block injected into image generation prompts.
 
+import { trunc } from '../format.js';
 import { buildFundingLine, getFundingStatus } from '../funding.js';
 import type { MindStore } from './store.js';
 
@@ -91,19 +92,51 @@ function historySection(recentHistory: any[], userId: string | null, now: Date):
 
     const lines: string[] = [];
     const chronological = [...recentHistory].reverse();
-    lines.push('RECENT MEMORY (what people have asked and your reactions):');
+    lines.push('RECENT MEMORY (what people have asked, and what you answered):');
     lines.push('');
 
-    chronological.forEach((h) => {
+    // The last few carry his reasoning too, the way a person still remembers WHY
+    // they did something five minutes ago; older rows fade to just what he did.
+    const thoughtsFrom = chronological.length - THOUGHT_ROWS;
+    chronological.forEach((h, i) => {
         const isCurrentUser = h.userId === userId;
         const name = h.displayName || h.handle || null;
         const who = isCurrentUser ? name || 'THIS PERSON' : name || 'someone';
         const outcome = h.outcome === 'refused' ? ' [REFUSED]' : h.outcome === 'error' ? ' [ERROR]' : '';
         const when = h.timestamp ? formatTimeAgo(now, new Date(h.timestamp)) : '';
         lines.push(`[${when}] ${who}: "${h.prompt}"${outcome}`);
+        // His own side of the exchange, so he can check a new ask against what he
+        // actually did (mirror-pair consistency). Without it he judged each half blind.
+        const answer = ownAnswer(h);
+        if (answer) lines.push(`    ↳ ${answer}`);
+        if (answer && i >= thoughtsFrom && h.response) lines.push(`    ↳ you thought: "${clip(h.response)}"`);
     });
     lines.push('');
     return lines;
+}
+
+// imagePrompts lead with style/medium and reach the subject in sentence two, so the
+// cap has to clear that (~1.8k tokens across 50 rows).
+const ANSWER_CHARS = 240;
+// How many of the most recent rows also show his private thoughts (~600 tokens).
+const THOUGHT_ROWS = 10;
+
+function clip(s: string): string {
+    const flat = s.replace(/\s+/g, ' ').trim();
+    return flat.length > ANSWER_CHARS ? `${trunc(flat, ANSWER_CHARS)}…` : flat;
+}
+
+/** One-line summary of what Clank put out for a history row: the opening of his
+ *  imagePrompt or his spoken text reply. Null when he put
+ *  nothing out (errors, legacy rows). */
+export function ownAnswer(h: {
+    outcome?: string;
+    imagePrompt?: string | null;
+    publicResponse?: string | null;
+}): string | null {
+    if (h.outcome === 'text_only' && h.publicResponse) return `you said: "${clip(h.publicResponse)}"`;
+    if (h.outcome === 'success' && h.imagePrompt) return `you drew: ${clip(h.imagePrompt)}`;
+    return null;
 }
 
 // ── People you know (placed after history so appearances are close to the prompt) ──
