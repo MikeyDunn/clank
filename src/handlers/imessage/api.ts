@@ -22,7 +22,7 @@
 import crypto from 'node:crypto';
 import { trunc } from '../../lib/format.js';
 import { downloadReferenceImage, runArtPipeline } from '../../lib/imageProcessor/pipeline.js';
-import { detectImageMime, uploadImageToS3 } from '../../lib/imageProcessor/upload.js';
+import { detectImageMime, isOwnImageUrl, uploadImageToS3 } from '../../lib/imageProcessor/upload.js';
 import * as memory from '../../lib/memory/index.js';
 import { createGlobalMeterStore } from '../../lib/memory/meterStore.js';
 import { tenantId } from '../../lib/memory/tenant.js';
@@ -122,27 +122,6 @@ async function captureName(userId: string, body: any) {
         typeof body.familyName === 'string' && body.familyName.trim() ? body.familyName.trim()[0].toUpperCase() : null;
     const accounts = createGlobalMeterStore(process.env.PROD_DYNAMODB_TABLE_NAME || '');
     await accounts.setNameOnce(userId, given, familyInitial);
-}
-
-/** True only for an https URL whose HOST is exactly our images bucket's S3
- *  virtual-host (path- or region-style), with no userinfo. Host-EXACT, never a
- *  prefix — a startsWith check is trivially bypassed by an attacker-owned host
- *  that begins with the bucket name. */
-function isOwnImageUrl(raw: string): boolean {
-    const bucket = process.env.S3_BUCKET_NAME || '';
-    if (!bucket) return false;
-    let u: URL;
-    try {
-        u = new URL(raw);
-    } catch {
-        return false;
-    }
-    if (u.protocol !== 'https:' || u.username || u.password) return false;
-    const host = u.hostname.toLowerCase();
-    // Virtual-hosted S3, host-exact: <bucket>.s3.amazonaws.com or
-    // <bucket>.s3.<region>.amazonaws.com — an allowlisted set, no prefixes.
-    const region = process.env.AWS_REGION || 'us-east-1';
-    return host === `${bucket}.s3.amazonaws.com` || host === `${bucket}.s3.${region}.amazonaws.com`;
 }
 
 // Minimum seconds between a user's renders — a hard cost-DoS floor independent

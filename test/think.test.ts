@@ -169,9 +169,9 @@ test('think: a transport error is caught and returned, not thrown', async () => 
 
 // ── Capabilities (outside-world tools) ───────────────────────────
 
-test('buildTools: no capabilities → lore + submit only', () => {
+test('buildTools: no capabilities → memory tools + submit only', () => {
     const names = buildTools({}).map((t) => t.function?.name || t.type);
-    assert.deepEqual(names, ['getEntityLore', 'getSemanticLore', 'submitResponse']);
+    assert.deepEqual(names, ['getEntityLore', 'getSemanticLore', 'viewPastImage', 'submitResponse']);
 });
 
 test('buildTools: granted tools sit before submitResponse', () => {
@@ -179,6 +179,7 @@ test('buildTools: granted tools sit before submitResponse', () => {
     assert.deepEqual(names, [
         'getEntityLore',
         'getSemanticLore',
+        'viewPastImage',
         'getMarketData',
         'openrouter:web_search',
         'submitResponse',

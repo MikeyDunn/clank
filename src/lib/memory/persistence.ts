@@ -83,7 +83,7 @@ async function remember(
 
     // Dual-write to vector store (best-effort, never throws) — the mind's scope
     // targets its bucket/index and stamps the tenant.
-    await syncHistoryEntry({ historyId, prompt, handle, timestamp: now }, scope);
+    await syncHistoryEntry({ historyId, prompt, handle, timestamp: now, imageUrl: genInfo.imageUrl || null }, scope);
 
     return { historyId, totalCost: cost };
 }

@@ -1,7 +1,8 @@
 // ─── Lore tools ──────────────────────────────────────────────────
 // Clank's memory-recall tools, called by the think step itself.
 // Both are vector searches over type=history (the group's user-authored
-// prompts). Returns raw prompt text — lore stays user-authored.
+// prompts). Returns raw prompt text — lore stays user-authored — plus the image
+// Clank made for that prompt, when there was one (see think.ts viewPastImage).
 
 import { embedOne } from './embeddings.js';
 import { LEGACY_SCOPE, queryVectors, type VectorScope } from './vectors.js';
@@ -17,6 +18,14 @@ const MAX_DEF_DISTANCE = 0.6;
 // Over-fetch + looser gate for exact-name hits; see recallEntityHistory's docstring.
 const ENTITY_OVERFETCH = 60;
 const MAX_EXACT_DISTANCE = 0.7;
+
+/** One recalled memory: the user-authored text, plus the render it produced
+ *  (history hits from after image links were stored; definitions never). */
+export type LoreHit = { text: string; imageUrl: string | null };
+const toHit = (m: { metadata: any }): LoreHit => ({
+    text: m.metadata.text || '',
+    imageUrl: m.metadata.imageUrl || null,
+});
 
 const LORE_TOOLS = [
     {
@@ -60,8 +69,8 @@ const LORE_TOOLS = [
  * the distance sort sinks homonym junk (actual "wolf" animals rank below a person's own
  * names). Net: searching every name a person might be stored under, kept accurate.
  */
-async function recallEntityHistory(tokens: string[], scope: VectorScope): Promise<string[]> {
-    const seen = new Map<string, { distance: number; text: string }>();
+async function recallEntityHistory(tokens: string[], scope: VectorScope): Promise<LoreHit[]> {
+    const seen = new Map<string, { distance: number; text: string; imageUrl: string | null }>();
     await Promise.all(
         tokens.map(async (token) => {
             const { vector } = await embedOne(token);
@@ -77,7 +86,7 @@ async function recallEntityHistory(tokens: string[], scope: VectorScope): Promis
             for (const m of hits) {
                 const text = m.metadata.text || '';
                 const prev = seen.get(text);
-                if (!prev || m.distance < prev.distance) seen.set(text, { distance: m.distance, text });
+                if (!prev || m.distance < prev.distance) seen.set(text, { distance: m.distance, ...toHit(m) });
             }
         })
     );
@@ -88,13 +97,18 @@ async function recallEntityHistory(tokens: string[], scope: VectorScope): Promis
     const rest = pool
         .filter((m) => m.distance <= MAX_DISTANCE && !tokenRe.test(m.text))
         .sort((a, b) => a.distance - b.distance);
-    return [...exact, ...rest].slice(0, TOPK).map((m) => m.text);
+    return [...exact, ...rest].slice(0, TOPK).map(({ text, imageUrl }) => ({ text, imageUrl }));
 }
 
-/** Execute a lore tool call → array of lore texts. Never throws. `tokenMap` (any of a
+/** Execute a lore tool call → recalled memories. Never throws. `tokenMap` (any of a
  *  person's names → the full list of their search tokens) lets entity recall search
  *  ALL of a person's names at once, so lore stored under any nickname still surfaces. */
-async function executeLoreTool(name, args, tokenMap: Record<string, string[]> = {}, scope: VectorScope = LEGACY_SCOPE) {
+async function executeLoreTool(
+    name,
+    args,
+    tokenMap: Record<string, string[]> = {},
+    scope: VectorScope = LEGACY_SCOPE
+): Promise<LoreHit[]> {
     try {
         const rawQ = name === 'getEntityLore' ? args?.name : args?.query;
         if (!rawQ) return [];
@@ -119,7 +133,7 @@ async function executeLoreTool(name, args, tokenMap: Record<string, string[]> = 
                 ),
                 recallEntityHistory(tokens, scope),
             ]);
-            return [...defs.map((m) => m.metadata.text), ...usage];
+            return [...defs.map((m) => ({ text: m.metadata.text, imageUrl: null })), ...usage];
         }
 
         // Semantic recall: single embed, history only.
@@ -133,7 +147,7 @@ async function executeLoreTool(name, args, tokenMap: Record<string, string[]> = 
             },
             scope
         );
-        return matches.map((m) => m.metadata.text);
+        return matches.map(toHit);
     } catch (err) {
         console.error('Lore tool failed:', name, err.message);
         return [];

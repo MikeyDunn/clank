@@ -52,4 +52,25 @@ async function uploadImageToS3(base64Image, _prompt) {
     return publicUrl;
 }
 
-export { detectImageMime, uploadImageToS3 };
+/** True only for an https URL whose HOST is exactly our images bucket's S3
+ *  virtual-host (path- or region-style), with no userinfo. Host-EXACT, never a
+ *  prefix — a startsWith check is trivially bypassed by an attacker-owned host
+ *  that begins with the bucket name. */
+function isOwnImageUrl(raw: string): boolean {
+    const bucket = process.env.S3_BUCKET_NAME || '';
+    if (!bucket) return false;
+    let u: URL;
+    try {
+        u = new URL(raw);
+    } catch {
+        return false;
+    }
+    if (u.protocol !== 'https:' || u.username || u.password) return false;
+    const host = u.hostname.toLowerCase();
+    // Virtual-hosted S3, host-exact: <bucket>.s3.amazonaws.com or
+    // <bucket>.s3.<region>.amazonaws.com — an allowlisted set, no prefixes.
+    const region = process.env.AWS_REGION || 'us-east-1';
+    return host === `${bucket}.s3.amazonaws.com` || host === `${bucket}.s3.${region}.amazonaws.com`;
+}
+
+export { detectImageMime, isOwnImageUrl, uploadImageToS3 };

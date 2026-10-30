@@ -4,12 +4,13 @@
 
 import { RESPONSE_TOOL, THINK_PROMPT } from '../../prompts/think.js';
 import { type Capabilities, NO_CAPABILITIES } from '../capabilities.js';
-import { executeLoreTool, LORE_TOOLS } from '../loreTools.js';
+import { executeLoreTool, LORE_TOOLS, type LoreHit } from '../loreTools.js';
 import { executeMarketTool, MARKET_TOOL } from '../marketTools.js';
 import { MODEL_ROLES } from '../models.js';
 import * as openrouter from '../openrouter.js';
 import { LEGACY_SCOPE, type VectorScope } from '../vectors.js';
 import { REACTED_MARKER } from './summon.js';
+import { isOwnImageUrl } from './upload.js';
 
 // Source-message context for the "Ask Clank" shortcut (the quoted original).
 export interface MessageContext {
@@ -59,12 +60,50 @@ const WEB_SEARCH_TOOL = {
     parameters: { engine: 'exa', max_results: 3, max_characters: 1500, max_uses: 1 },
 };
 
+// Past renders: a recalled memory that produced an image is tagged "[image memN]".
+// He can look at it (the picture enters the conversation) and/or name the mem id
+// in submitResponse.references so his hands keep a recurring look consistent.
+const VIEW_IMAGE_TOOL = {
+    type: 'function',
+    function: {
+        name: 'viewPastImage',
+        description:
+            'Look at a picture you made before. Recalled memories that produced an image are tagged like "[image mem2]"; pass that id to see it. Use it when how something LOOKED matters (a recurring character, place, or object), not for every memory.',
+        parameters: {
+            type: 'object',
+            properties: {
+                id: { type: 'string', description: 'A mem id from your recalled memories, e.g. "mem2".' },
+            },
+            required: ['id'],
+        },
+    },
+};
+// Each viewed image is re-read on every later tool turn (~1.5k tokens, uncached),
+// so cap how many he can pull up per request.
+const MAX_VIEWS = 3;
+
+/** Render recall hits for the tool result, tagging each render-backed memory with
+ *  a stable mem id (registered in `memImages`, id → url; same url → same id).
+ *  Only our own images bucket is ever tagged. Pure apart from the map. */
+function formatRecall(hits: LoreHit[], memImages: Map<string, string>): string[] {
+    return hits.map((h) => {
+        if (!h.imageUrl || !isOwnImageUrl(h.imageUrl)) return h.text;
+        let id = [...memImages].find(([, url]) => url === h.imageUrl)?.[0];
+        if (!id) {
+            id = `mem${memImages.size + 1}`;
+            memImages.set(id, h.imageUrl);
+        }
+        return `[image ${id}] ${h.text}`;
+    });
+}
+
 /** The tool list for one mind: lore recall + whatever outside-world tools it
  *  grants + the final-answer tool. Constant for the whole loop (Sonnet 5.5
  *  refuses if the list changes mid-conversation). Pure. */
 function buildTools(caps: Capabilities): any[] {
     return [
         ...LORE_TOOLS,
+        VIEW_IMAGE_TOOL,
         ...(caps.market ? [MARKET_TOOL] : []),
         ...(caps.webSearch ? [WEB_SEARCH_TOOL] : []),
         RESPONSE_TOOL,
@@ -250,6 +289,8 @@ async function think(
     let cost = 0;
     let webSearches = 0;
     const toolLog: any[] = [];
+    const memImages = new Map<string, string>(); // mem id → render url, from recall
+    const viewed = new Set<string>();
 
     try {
         // Clank recalls lore via tools, then submits his answer via the
@@ -261,7 +302,9 @@ async function think(
             // tool_choice AND refuses (finish_reason content_filter) if the tool
             // list changes mid-conversation, so the tools stay constant and the
             // instruction rides in a user turn instead.
-            if (turn === MAX_TURNS - 1 && messages[messages.length - 1].role !== 'user') {
+            // (A shown-image user turn doesn't count as the nudge; only a plain-text one does.)
+            const last = messages[messages.length - 1];
+            if (turn === MAX_TURNS - 1 && !(last.role === 'user' && typeof last.content === 'string')) {
                 messages.push({
                     role: 'user',
                     content:
@@ -286,7 +329,7 @@ async function think(
                     console.log(
                         `Think: type=${result.type} (${duration}s, $${cost.toFixed(4)}, recalls=${JSON.stringify(toolLog)}${webSearches ? `, webSearches=${webSearches}` : ''})`
                     );
-                    return { ...result, cost };
+                    return { ...result, cost, memoryImages: Object.fromEntries(memImages) };
                 } catch {
                     console.error(
                         'Think: submitResponse args unparseable:',
@@ -305,6 +348,7 @@ async function think(
             // Otherwise these are recalls (lore, or market data when granted) —
             // execute them and loop.
             if (calls.length) {
+                const toShow: string[] = [];
                 for (const tc of calls) {
                     let args: any = {};
                     try {
@@ -319,13 +363,44 @@ async function think(
                         messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(data) });
                         continue;
                     }
+                    if (name === 'viewPastImage') {
+                        const id = String(args.id || '');
+                        const url = memImages.get(id);
+                        let reply: string;
+                        if (!url) reply = `No recalled image "${id}". Use a mem id from your recalled memories.`;
+                        else if (!viewed.has(id) && viewed.size >= MAX_VIEWS)
+                            reply = "You've looked at enough past images for this request.";
+                        else {
+                            viewed.add(id);
+                            toShow.push(id);
+                            reply = `Here is ${id}.`;
+                        }
+                        toolLog.push({ t: 'V', a: id, n: url ? 1 : 0 });
+                        messages.push({ role: 'tool', tool_call_id: tc.id, content: reply });
+                        continue;
+                    }
                     const results = await executeLoreTool(name, args, tokenMap, vectorScope);
                     toolLog.push({
                         t: name === 'getEntityLore' ? 'E' : 'S',
                         a: args.name || args.query,
                         n: results.length,
                     });
-                    messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(results) });
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: tc.id,
+                        content: JSON.stringify(formatRecall(results, memImages)),
+                    });
+                }
+                // Tool results are text-only, so the pictures he asked to see ride
+                // in a user turn right after them (public S3 urls, fetched upstream).
+                if (toShow.length) {
+                    messages.push({
+                        role: 'user',
+                        content: toShow.flatMap((id) => [
+                            { type: 'text', text: `[Past image ${id}, one you made before.]` },
+                            { type: 'image_url', image_url: { url: memImages.get(id) } },
+                        ]),
+                    });
                 }
                 continue;
             }
@@ -348,4 +423,4 @@ async function think(
     }
 }
 
-export { buildTools, buildUserContent, think, worldSection };
+export { buildTools, buildUserContent, formatRecall, think, worldSection };

@@ -204,6 +204,39 @@ export function resolveReferences(images: ThinkImage[], references: unknown): Ge
     return primary ? [{ url: primary.base64, use: null }] : [];
 }
 
+/** Ids of the recalled past renders ("memN") Clank named in `references`, in
+ *  order, deduped, capped. Pure. */
+export function memoryRefIds(references: unknown, memoryImages: Record<string, string> = {}): string[] {
+    if (!Array.isArray(references)) return [];
+    const ids: string[] = [];
+    for (const r of references) {
+        const id = typeof r === 'string' ? r : r && typeof r === 'object' ? (r as any).id : null;
+        if (typeof id === 'string' && memoryImages[id] && !ids.includes(id)) ids.push(id);
+        if (ids.length >= MAX_GEN_REFS) break;
+    }
+    return ids;
+}
+
+/** Fetch the past renders he named as references into labeled images, so
+ *  resolveReferences can route them like any other. Failures drop silently: a
+ *  missing old picture just means his hands work from words alone. */
+async function loadMemoryReferences(references: unknown, memoryImages?: Record<string, string>): Promise<ThinkImage[]> {
+    const ids = memoryRefIds(references, memoryImages);
+    const loaded = await Promise.all(
+        ids.map(async (id) => {
+            const dl = await downloadReferenceImage({
+                url: memoryImages?.[id],
+                name: id,
+                isPublic: true,
+                noRedirect: true,
+            });
+            return dl.ok && dl.base64 ? ({ id, base64: dl.base64, role: 'context' } as ThinkImage) : null;
+        })
+    );
+    if (ids.length) console.log(`Memory refs: ${loaded.filter(Boolean).length}/${ids.length} loaded`);
+    return loaded.filter((x): x is ThinkImage => x !== null);
+}
+
 export async function runArtPipeline({
     prompt,
     context,
@@ -255,6 +288,7 @@ export async function runArtPipeline({
 
     // Which images reach Clank's hands: the ids HE chose (`references`), mapped
     // back to data. Omitted → the primary reference (legacy default); [] → none.
+    images.push(...(await loadMemoryReferences(thinkResult.references, thinkResult.memoryImages)));
     const genRefs = resolveReferences(images, thinkResult.references);
     if (genRefs.length) console.log(`Generate refs: ${genRefs.length}`);
 
