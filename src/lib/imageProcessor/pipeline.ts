@@ -43,6 +43,7 @@ async function fetchNoRedirect(url: string, noRedirect: boolean): Promise<Respon
 // which is Anthropic's own internal downscale target (no vision-quality loss)
 // and also cuts vision-token cost.
 const MODEL_MAX_EDGE = 1568;
+const MODEL_MAX_PIXELS = 8000; // Anthropic's hard per-edge limit
 const FIT_THRESHOLD = 4_000_000; // below this (base64 ~5.3MB) an image is already safe → leave it untouched
 const SAFE_B64_LIMIT = 9_000_000; // margin under the hard 10MB base64 ceiling (fallback path only)
 
@@ -66,8 +67,20 @@ async function loadSharp(): Promise<any> {
  *  small); without sharp (Discord/iMessage) an oversized image is rejected —
  *  a clean skip beats the opaque "Provider returned error". */
 async function fitForModel(buf: Buffer, mime: string): Promise<{ buf: Buffer; mime: string } | null> {
-    if (buf.length < FIT_THRESHOLD) return { buf, mime };
     const sharp = await loadSharp();
+    // Anthropic also rejects any image over 8000px on either edge with a bare
+    // 400, regardless of bytes, so a small-but-wide panorama (10591x3834, 2.3MB)
+    // must be downscaled too.
+    let tooWide = false;
+    if (sharp) {
+        try {
+            const { width = 0, height = 0 } = await sharp(buf).metadata();
+            tooWide = Math.max(width, height) > MODEL_MAX_PIXELS;
+        } catch {
+            // unreadable metadata: fall through to the byte check
+        }
+    }
+    if (buf.length < FIT_THRESHOLD && !tooWide) return { buf, mime };
     if (sharp) {
         try {
             const out = await sharp(buf)
