@@ -59,6 +59,7 @@ async function remember(
         imageUrl: genInfo.imageUrl || null,
         referenceUrl: genInfo.referenceUrl || null,
         imagePrompt: genInfo.imagePrompt || null,
+        drew: genInfo.drew || null,
         publicResponse: genInfo.publicResponse || null,
         errorMessage: genInfo.errorMessage || null,
         model: genInfo.model || null,

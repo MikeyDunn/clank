@@ -105,6 +105,7 @@ export async function consumeOutcome(pipe: ArtOutcome, ctx: RequestCtx, adapter:
             model: MODEL_ROLES.image,
             cost,
             imagePrompt: pipe.imagePrompt,
+            drew: pipe.thinkResult.drew,
             preThoughts: trunc(pipe.thinkResult.thoughts, 500),
             errorMessage: `[${errorType}] ${trunc(message, 500)}`,
         });
@@ -123,6 +124,7 @@ export async function consumeOutcome(pipe: ArtOutcome, ctx: RequestCtx, adapter:
             imageUrl: publicUrl,
             referenceUrl,
             imagePrompt: pipe.imagePrompt,
+            drew: pipe.thinkResult.drew,
         });
         // Name Wolf's self-hosted model when it rendered, else the OpenRouter one.
         const fromWolf = pipe.result.backend === 'wolf';
@@ -162,6 +164,7 @@ export async function consumeOutcome(pipe: ArtOutcome, ctx: RequestCtx, adapter:
             model: MODEL_ROLES.image,
             cost,
             imagePrompt: pipe.imagePrompt,
+            drew: pipe.thinkResult.drew,
             preThoughts: trunc(pipe.thinkResult.thoughts, 500),
             errorMessage: `[${pipe.result.errorType || 'NO_IMAGE'}] ${trunc(pipe.result.textResponse || pipe.result.message, 500)}`,
         }

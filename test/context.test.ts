@@ -83,6 +83,18 @@ test('ownAnswer: image rows show the imagePrompt, text rows the spoken reply', (
     assert.equal(ownAnswer({ outcome: 'success' }), null);
 });
 
+test('ownAnswer: prefers his own drew note over the imagePrompt opening', () => {
+    assert.equal(
+        ownAnswer({
+            outcome: 'success',
+            drew: 'Floyd at a parent-teacher night',
+            imagePrompt: 'Candid 35mm flash photo',
+        }),
+        'you drew: Floyd at a parent-teacher night'
+    );
+    assert.equal(ownAnswer({ outcome: 'error', drew: 'x' }), null);
+});
+
 test('ownAnswer: long answers are clipped', () => {
     const out = ownAnswer({ outcome: 'success', imagePrompt: 'a'.repeat(500) }) as string;
     assert.ok(out.endsWith('…'));

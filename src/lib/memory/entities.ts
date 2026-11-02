@@ -167,6 +167,8 @@ export const HistoryEntity = new Entity(
             imageUrl: { type: 'string' },
             referenceUrl: { type: 'string' },
             imagePrompt: { type: 'string' },
+            // His own one-line note of what's in the picture (recent-memory display).
+            drew: { type: 'string' },
             publicResponse: { type: 'string' },
             errorMessage: { type: 'string' },
             model: { type: 'string' },

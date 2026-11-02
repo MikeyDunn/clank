@@ -115,8 +115,9 @@ function historySection(recentHistory: any[], userId: string | null, now: Date):
     return lines;
 }
 
-// imagePrompts lead with style/medium and reach the subject in sentence two, so the
-// cap has to clear that (~1.8k tokens across 50 rows).
+// Legacy fallback only: imagePrompts lead with style/medium and reach the subject in
+// sentence two, so the cap has to clear that. Rows with his own `drew` note (2026-11)
+// show that instead, which is shorter and carries the gag rather than camera settings.
 const ANSWER_CHARS = 240;
 // How many of the most recent rows also show his private thoughts (~600 tokens).
 const THOUGHT_ROWS = 10;
@@ -126,15 +127,17 @@ function clip(s: string): string {
     return flat.length > ANSWER_CHARS ? `${trunc(flat, ANSWER_CHARS)}…` : flat;
 }
 
-/** One-line summary of what Clank put out for a history row: the opening of his
- *  imagePrompt or his spoken text reply. Null when he put
- *  nothing out (errors, legacy rows). */
+/** One-line summary of what Clank put out for a history row: his own `drew` note
+ *  (else the opening of his imagePrompt, for older rows) or his spoken text reply.
+ *  Null when he put nothing out (errors, legacy rows). */
 export function ownAnswer(h: {
     outcome?: string;
+    drew?: string | null;
     imagePrompt?: string | null;
     publicResponse?: string | null;
 }): string | null {
     if (h.outcome === 'text_only' && h.publicResponse) return `you said: "${clip(h.publicResponse)}"`;
+    if (h.outcome === 'success' && h.drew) return `you drew: ${clip(h.drew)}`;
     if (h.outcome === 'success' && h.imagePrompt) return `you drew: ${clip(h.imagePrompt)}`;
     return null;
 }

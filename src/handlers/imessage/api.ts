@@ -258,6 +258,7 @@ async function generate(body: any, session: any, secret: string, lambdaCtx: any)
             kind: 'image',
             imageUrl: publicUrl,
             imagePrompt: trunc(pipe.imagePrompt || '', 1800),
+            drew: trunc(pipe.thinkResult.drew || '', 300) || null,
             model: MODEL_ROLES.image,
         },
         secret,
@@ -329,6 +330,7 @@ async function commit(body: any, session: any, secret: string) {
             cost: draft.cost || 0,
             imageUrl: draft.imageUrl || null,
             imagePrompt: draft.imagePrompt || null,
+            drew: draft.drew,
             publicResponse: draft.kind === 'text' ? draft.response || null : null,
         }
     );
